@@ -1,0 +1,83 @@
+name: Build J2ME Decade iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ipa:
+    runs-on: macos-15-intel
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app || true
+
+      - name: Build Application with Xcode
+        run: |
+          set -o pipefail
+          xcodebuild -project J2MEEmulator.xcodeproj \
+            -target J2MEEmulator \
+            -configuration Release \
+            -sdk iphoneos \
+            ARCHS="arm64" \
+            ONLY_ACTIVE_ARCH=NO \
+            SYMROOT="$PWD/build_out" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual \
+            clean build 2>&1 | tee build_raw.log || {
+              echo "=== BUILD FAILED - RECENT LOGS ==="
+              tail -n 120 build_raw.log
+              exit 1
+            }
+
+      - name: Package App into IPA
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find "$PWD/build_out" -name "*.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d | head -n 1)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find . -name "*.app" -type d | head -n 1)
+          fi
+          echo "Found App at: $APP_PATH"
+          cp -R "$APP_PATH" Payload/
+          echo "=== Content of App Bundle ==="
+          ls -la Payload/*.app/
+          zip -r J2ME-Decade.ipa Payload/
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: J2ME-Decade-IPA
+          path: J2ME-Decade.ipa
+          retention-days: 14
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: v2.0-native
+          name: "J2ME Decade Native iOS v2.0"
+          body: |
+            ## J2ME Decade iOS v2.0 - Native C/Swift Engine
+            - **Nhân máy ảo Java thuần Native (miniJVM + J2ME-Loader C/Swift port)**: chạy trực tiếp bytecode trên CPU iOS, 60 FPS mượt mà.
+            - **100% Hoàn toàn Miễn phí & Độc lập**: Không có bất kỳ license, không giới hạn trial 2 tiếng, không thu phí tháng.
+            - **Đã loại bỏ hoàn toàn hệ thống âm thanh**: 0% CPU âm thanh, máy siêu mát, tiết kiệm pin.
+            - **Hỗ trợ kết nối mạng Socket TCP Native**: chơi online Ninja School mượt mà.
+            - **Quản lý danh sách game vĩnh viễn**: Tự nhận diện game tích hợp sẵn, nút `+` nạp thêm JAR từ Files app và lưu vĩnh viễn trong máy.
+            - **Cài đặt**: Kéo file `J2ME-Decade.ipa` vào Sideloadly để cài lên iPhone.
+          files: J2ME-Decade.ipa
+
