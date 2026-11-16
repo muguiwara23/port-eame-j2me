@@ -553,6 +553,7 @@ class GameViewController: UIViewController {
         titleLabel.text = session.appName
         appName = session.appName
         jarPath = session.jarPath
+        DecadeFloatingBubble.shared.setGameInfo(name: session.appName, icon: appIcon, tabNumber: index + 1)
         if let icon = session.icon {
             appIcon = icon
         }
@@ -953,14 +954,61 @@ class GameViewController: UIViewController {
         }
     }
 
+    private func setupFloatingBubble() {
+        let currentTabName = (activeTabIndex < tabSessions.count) ? tabSessions[activeTabIndex].appName : appName
+        DecadeFloatingBubble.shared.setGameInfo(name: currentTabName, icon: appIcon, tabNumber: activeTabIndex + 1)
+        DecadeFloatingBubble.shared.onRestoreGame = { [weak self] in
+            self?.dismissOledBlackOverlay()
+        }
+        DecadeFloatingBubble.shared.onToggleHeadless = { [weak self] in
+            guard let self = self else { return }
+            if self.oledBlackOverlay.superview != nil {
+                self.dismissOledBlackOverlay()
+            } else {
+                self.view.window?.addSubview(self.oledBlackOverlay)
+                self.view.window?.bringSubviewToFront(DecadeFloatingBubble.shared)
+            }
+        }
+        DecadeFloatingBubble.shared.onSelectTabPrompt = { [weak self] in
+            self?.promptSwitchTab()
+        }
+        DecadeFloatingBubble.shared.onAssignProxy = { [weak self] in
+            self?.promptAssignProxyForCurrentTab()
+        }
+        DecadeFloatingBubble.shared.onToggleTreo = { [weak self] in
+            self?.toggleTreoTatMan()
+        }
+    }
+
+    private func promptSwitchTab() {
+        let alert = UIAlertController(title: "Chọn Tab Midlet", message: "Đang mở \(tabButtons.count) tab:", preferredStyle: .actionSheet)
+        for i in 0..<tabButtons.count {
+            let isCurrent = (i == activeTabIndex)
+            let tabTitle = (isCurrent ? "⦿ Tab \(i + 1) (Hiện tại)" : "○ Tab \(i + 1)")
+            alert.addAction(UIAlertAction(title: tabTitle, style: .default) { [weak self] _ in
+                self?.selectTab(at: i)
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = DecadeFloatingBubble.shared
+            popover.sourceRect = DecadeFloatingBubble.shared.bounds
+        }
+        present(alert, animated: true)
+    }
+
     private func toggleTreoTatMan() {
         isKeepAwake.toggle()
         DecadeBackgroundKeeper.shared.setTreoActive(isKeepAwake)
         if isKeepAwake {
             view.window?.addSubview(oledBlackOverlay)
-            showToast(message: "Đã bật treo tắt màn & chạy ngầm liên tục")
+            setupFloatingBubble()
+            DecadeFloatingBubble.shared.show(in: view.window)
+            view.window?.bringSubviewToFront(DecadeFloatingBubble.shared)
+            showToast(message: "Đã bật treo tắt màn & bong bóng chạy ngầm")
         } else {
             dismissOledBlackOverlay()
+            DecadeFloatingBubble.shared.hide()
             showToast(message: "Đã tắt treo tắt màn")
         }
     }
@@ -1640,6 +1688,7 @@ class GameViewController: UIViewController {
         backButton.isEnabled = false
         autoShutdownTimer?.invalidate()
         autoShutdownTimer = nil
+        DecadeFloatingBubble.shared.hide()
         DecadeBackgroundKeeper.shared.setTreoActive(false)
         UIApplication.shared.isIdleTimerDisabled = false
 

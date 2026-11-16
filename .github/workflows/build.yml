@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build-ipa:
-    runs-on: macos-15-intel
+    runs-on: macos-14
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -67,17 +67,17 @@ jobs:
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/main')
+        if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
           tag_name: v2.0-native
           name: "J2ME Decade Native iOS v2.0"
           body: |
             ## J2ME Decade iOS v2.0 - Native C/Swift Engine
+            - **Sửa giao diện ChoiceGroup (Dạng nút chọn Radio/Checkbox)**: Khắc phục hoàn toàn lỗi hiển thị dạng ô chữ "1 Bật Tắt 0,1". Các tùy chọn hiển thị dạng nút tròn radio và checkbox trực quan 100% như Android.
+            - **Tích hợp Bong bóng nổi Popup (AssistiveTouch Floating Bubble)**: Tự động hiển thị khi bật Chạy nền / Treo tắt màn, có thể kéo thả di chuyển, chạm vào để mở Menu nhanh (Quay lại game, Màn đen tiết kiệm pin, Chuyển tab, Gán proxy, Dừng treo).
             - **Nhân máy ảo Java thuần Native (miniJVM + J2ME-Loader C/Swift port)**: chạy trực tiếp bytecode trên CPU iOS, 60 FPS mượt mà.
             - **100% Hoàn toàn Miễn phí & Độc lập**: Không có bất kỳ license, không giới hạn trial 2 tiếng, không thu phí tháng.
-            - **Đã loại bỏ hoàn toàn hệ thống âm thanh**: 0% CPU âm thanh, máy siêu mát, tiết kiệm pin.
             - **Hỗ trợ kết nối mạng Socket TCP Native**: chơi online Ninja School mượt mà.
-            - **Quản lý danh sách game vĩnh viễn**: Tự nhận diện game tích hợp sẵn, nút `+` nạp thêm JAR từ Files app và lưu vĩnh viễn trong máy.
-            - **Cài đặt**: Kéo file `J2ME-Decade.ipa` vào Sideloadly để cài lên iPhone.
+            - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi dùng Sideloadly hoặc 3uTools để cài lên iPhone.
           files: J2ME-Decade.ipa
 

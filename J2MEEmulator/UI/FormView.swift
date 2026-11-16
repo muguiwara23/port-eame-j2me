@@ -510,8 +510,8 @@ class FormView: UIView, UITextFieldDelegate {
 
         let container = UIStackView()
         container.axis = .vertical
-        container.spacing = 8
-        container.layoutMargins = UIEdgeInsets(top: 10, left: 14, bottom: 12, right: 14)
+        container.spacing = 10
+        container.layoutMargins = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
         container.isLayoutMarginsRelativeArrangement = true
         container.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(container)
@@ -521,6 +521,7 @@ class FormView: UIView, UITextFieldDelegate {
             labelView.text = label
             labelView.font = .boldSystemFont(ofSize: 15)
             labelView.textColor = UIColor(red: 0.12, green: 0.15, blue: 0.20, alpha: 1.0)
+            labelView.numberOfLines = 0
             container.addArrangedSubview(labelView)
         }
 
@@ -533,45 +534,47 @@ class FormView: UIView, UITextFieldDelegate {
             flags = parts[2].components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) == "1" }
         }
 
-        // ChoiceGroup choiceType was passed in param2 (maxSize was param1)
         let choiceType = j2me_ui_get_form_item_param2(Int32(index)) // 1=EXCLUSIVE, 2=MULTIPLE, 4=POPUP
+        let isMultiple = (choiceType == 2)
 
-        if (choiceType == 1 || choiceType == 4) && options.count > 0 && options.count <= 3 {
-            // Segmented control for 2-3 options
-            let seg = UISegmentedControl(items: options)
-            seg.selectedSegmentIndex = max(0, min(selectedIdx, options.count - 1))
-            seg.tag = index
-            seg.addTarget(self, action: #selector(choiceSegmentChanged(_:)), for: .valueChanged)
-            container.addArrangedSubview(seg)
-        } else {
-            // List of checkable / selectable rows
-            for (optIdx, optTitle) in options.enumerated() {
-                let row = UIStackView()
-                row.axis = .horizontal
-                row.spacing = 10
-                row.alignment = .center
+        for (optIdx, optTitle) in options.enumerated() {
+            let isSelected = isMultiple ? (optIdx < flags.count ? flags[optIdx] : false) : (optIdx == selectedIdx)
 
-                let optLabel = UILabel()
-                optLabel.text = optTitle
-                optLabel.font = .systemFont(ofSize: 15)
-                optLabel.textColor = UIColor(red: 0.20, green: 0.20, blue: 0.22, alpha: 1.0)
-                row.addArrangedSubview(optLabel)
+            let rowBtn = UIButton(type: .custom)
+            rowBtn.tag = index * 1000 + optIdx
+            rowBtn.translatesAutoresizingMaskIntoConstraints = false
+            rowBtn.heightAnchor.constraint(greaterThanOrEqualToConstant: 40).isActive = true
+            rowBtn.contentHorizontalAlignment = .leading
 
-                let isSelected = choiceType == 2 ? (optIdx < flags.count ? flags[optIdx] : false) : (optIdx == selectedIdx)
-                let checkBtn = UIButton(type: .custom)
-                checkBtn.tag = index * 1000 + optIdx
-                checkBtn.layer.cornerRadius = 6
-                checkBtn.layer.borderWidth = 1.5
-                checkBtn.translatesAutoresizingMaskIntoConstraints = false
-                checkBtn.widthAnchor.constraint(equalToConstant: 24).isActive = true
-                checkBtn.heightAnchor.constraint(equalToConstant: 24).isActive = true
+            let rowStack = UIStackView()
+            rowStack.axis = .horizontal
+            rowStack.spacing = 12
+            rowStack.alignment = .center
+            rowStack.isUserInteractionEnabled = false
+            rowStack.translatesAutoresizingMaskIntoConstraints = false
 
-                applyCheckboxStyle(checkBtn, isChecked: isSelected)
-                checkBtn.addTarget(self, action: #selector(choiceRowTapped(_:)), for: .touchUpInside)
-                row.addArrangedSubview(checkBtn)
+            // Indicator (Radio circle or Checkbox)
+            let indicator = makeIndicatorView(isMultiple: isMultiple, isSelected: isSelected)
+            rowStack.addArrangedSubview(indicator)
 
-                container.addArrangedSubview(row)
-            }
+            // Text label
+            let optLabel = UILabel()
+            optLabel.text = optTitle
+            optLabel.font = .systemFont(ofSize: 16, weight: isSelected ? .medium : .regular)
+            optLabel.textColor = isSelected ? UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0) : UIColor(red: 0.25, green: 0.25, blue: 0.28, alpha: 1.0)
+            optLabel.numberOfLines = 0
+            rowStack.addArrangedSubview(optLabel)
+
+            rowBtn.addSubview(rowStack)
+            NSLayoutConstraint.activate([
+                rowStack.topAnchor.constraint(equalTo: rowBtn.topAnchor, constant: 4),
+                rowStack.bottomAnchor.constraint(equalTo: rowBtn.bottomAnchor, constant: -4),
+                rowStack.leadingAnchor.constraint(equalTo: rowBtn.leadingAnchor, constant: 4),
+                rowStack.trailingAnchor.constraint(equalTo: rowBtn.trailingAnchor, constant: -4),
+            ])
+
+            rowBtn.addTarget(self, action: #selector(choiceRowTapped(_:)), for: .touchUpInside)
+            container.addArrangedSubview(rowBtn)
         }
 
         NSLayoutConstraint.activate([
@@ -584,33 +587,65 @@ class FormView: UIView, UITextFieldDelegate {
         stackView.addArrangedSubview(card)
     }
 
-    private func applyCheckboxStyle(_ btn: UIButton, isChecked: Bool) {
-        if isChecked {
-            btn.backgroundColor = UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0)
-            btn.layer.borderColor = UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0).cgColor
-            btn.setTitle("✓", for: .normal)
-            btn.setTitleColor(.white, for: .normal)
-            btn.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
-        } else {
-            btn.backgroundColor = .white
-            btn.layer.borderColor = UIColor(white: 0.75, alpha: 1.0).cgColor
-            btn.setTitle("", for: .normal)
-        }
-    }
+    private func makeIndicatorView(isMultiple: Bool, isSelected: Bool) -> UIView {
+        let size: CGFloat = 22
+        let v = UIView()
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.widthAnchor.constraint(equalToConstant: size).isActive = true
+        v.heightAnchor.constraint(equalToConstant: size).isActive = true
 
-    @objc private func choiceSegmentChanged(_ sender: UISegmentedControl) {
-        let itemIndex = sender.tag
-        let raw = String(cString: j2me_ui_get_form_item_text(Int32(itemIndex)))
-        var parts = raw.components(separatedBy: "\n")
-        if parts.isEmpty { parts = ["0", "", ""] }
-        parts[0] = "\(sender.selectedSegmentIndex)"
-        let updated = parts.joined(separator: "\n")
-        updated.withCString { cstr in
-            j2me_ui_set_form_item_text(Int32(itemIndex), cstr)
+        if isMultiple {
+            // Checkbox: rounded rectangle
+            v.layer.cornerRadius = 5
+            if isSelected {
+                v.backgroundColor = UIColor(red: 0.85, green: 0.20, blue: 0.20, alpha: 1.0)
+                v.layer.borderWidth = 0
+                let check = UILabel()
+                check.text = "✓"
+                check.textColor = .white
+                check.font = .systemFont(ofSize: 15, weight: .bold)
+                check.textAlignment = .center
+                check.translatesAutoresizingMaskIntoConstraints = false
+                v.addSubview(check)
+                NSLayoutConstraint.activate([
+                    check.centerXAnchor.constraint(equalTo: v.centerXAnchor),
+                    check.centerYAnchor.constraint(equalTo: v.centerYAnchor)
+                ])
+            } else {
+                v.backgroundColor = .white
+                v.layer.borderWidth = 1.8
+                v.layer.borderColor = UIColor(white: 0.65, alpha: 1.0).cgColor
+            }
+        } else {
+            // Radio button: circular ring with inner dot
+            v.layer.cornerRadius = size / 2
+            v.backgroundColor = .white
+            if isSelected {
+                v.layer.borderWidth = 2.2
+                v.layer.borderColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0).cgColor
+                let dot = UIView()
+                dot.backgroundColor = UIColor(red: 0.15, green: 0.15, blue: 0.18, alpha: 1.0)
+                dot.layer.cornerRadius = 6
+                dot.translatesAutoresizingMaskIntoConstraints = false
+                v.addSubview(dot)
+                NSLayoutConstraint.activate([
+                    dot.centerXAnchor.constraint(equalTo: v.centerXAnchor),
+                    dot.centerYAnchor.constraint(equalTo: v.centerYAnchor),
+                    dot.widthAnchor.constraint(equalToConstant: 12),
+                    dot.heightAnchor.constraint(equalToConstant: 12),
+                ])
+            } else {
+                v.layer.borderWidth = 1.8
+                v.layer.borderColor = UIColor(white: 0.65, alpha: 1.0).cgColor
+            }
         }
+        return v
     }
 
     @objc private func choiceRowTapped(_ sender: UIButton) {
+        let feedback = UISelectionFeedbackGenerator()
+        feedback.selectionChanged()
+
         let itemIndex = sender.tag / 1000
         let optIndex = sender.tag % 1000
         let raw = String(cString: j2me_ui_get_form_item_text(Int32(itemIndex)))
@@ -618,8 +653,8 @@ class FormView: UIView, UITextFieldDelegate {
         while parts.count < 3 { parts.append("") }
 
         let choiceType = j2me_ui_get_form_item_param2(Int32(itemIndex))
-        let options = parts[1].components(separatedBy: "\t")
-        var flags = parts[2].components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) == "1" }
+        let options = parts.count > 1 ? parts[1].components(separatedBy: "\t") : []
+        var flags = parts.count > 2 ? parts[2].components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) == "1" } : []
         while flags.count < options.count { flags.append(false) }
 
         if choiceType == 2 {
@@ -628,17 +663,22 @@ class FormView: UIView, UITextFieldDelegate {
                 flags[optIndex].toggle()
             }
             parts[2] = flags.map { $0 ? "1" : "0" }.joined(separator: ",")
-            applyCheckboxStyle(sender, isChecked: flags[optIndex])
         } else {
-            // EXCLUSIVE: select single
+            // EXCLUSIVE / POPUP: single select
             parts[0] = "\(optIndex)"
-            buildFromNativeData() // Re-render card with updated radio state
+            for i in 0..<flags.count {
+                flags[i] = (i == optIndex)
+            }
+            parts[2] = flags.map { $0 ? "1" : "0" }.joined(separator: ",")
         }
 
         let updated = parts.joined(separator: "\n")
         updated.withCString { cstr in
             j2me_ui_set_form_item_text(Int32(itemIndex), cstr)
         }
+
+        // Instantly refresh form so radio states update smoothly
+        buildFromNativeData()
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {

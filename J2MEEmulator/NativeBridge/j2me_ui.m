@@ -171,6 +171,38 @@ static s32 n_formAddStringItem(Runtime *runtime, JClass *clazz) {
     return RUNTIME_STATUS_NORMAL;
 }
 
+static s32 n_formAddChoiceGroup(Runtime *runtime, JClass *clazz) {
+    int slot = jvm_bridge_get_jvm_slot(runtime->jvm);
+    if (slot != jvm_bridge_get_focused_slot()) return RUNTIME_STATUS_NORMAL;
+
+    JniEnv *env = runtime->jnienv;
+    Instance *jlabel = env->localvar_getRefer(runtime->localvar, 0);
+    Instance *jtext = env->localvar_getRefer(runtime->localvar, 1);
+    s32 choiceType = env->localvar_getInt(runtime->localvar, 2);
+
+    if (g_form_item_count >= MAX_FORM_ITEMS) return RUNTIME_STATUS_NORMAL;
+    FormItem *item = &g_form_items[g_form_item_count++];
+    item->type = 2; // 2 = ChoiceGroup
+    item->intParam1 = choiceType;
+    item->intParam2 = choiceType;
+    item->label[0] = '\0';
+    item->text[0] = '\0';
+
+    if (jlabel) {
+        Utf8String *u = utf8_create();
+        env->jstring_2_utf8(jlabel, u, runtime);
+        strncpy(item->label, utf8_cstr(u), sizeof(item->label) - 1);
+        utf8_destroy(u);
+    }
+    if (jtext) {
+        Utf8String *u = utf8_create();
+        env->jstring_2_utf8(jtext, u, runtime);
+        strncpy(item->text, utf8_cstr(u), sizeof(item->text) - 1);
+        utf8_destroy(u);
+    }
+    return RUNTIME_STATUS_NORMAL;
+}
+
 static s32 n_formAddTextField(Runtime *runtime, JClass *clazz) {
     int slot = jvm_bridge_get_jvm_slot(runtime->jvm);
     if (slot != jvm_bridge_get_focused_slot()) return RUNTIME_STATUS_NORMAL;
@@ -183,7 +215,6 @@ static s32 n_formAddTextField(Runtime *runtime, JClass *clazz) {
 
     if (g_form_item_count >= MAX_FORM_ITEMS) return RUNTIME_STATUS_NORMAL;
     FormItem *item = &g_form_items[g_form_item_count++];
-    item->type = (maxSize == 2) ? 2 : 1; // 2=choicegroup, 1=textfield
     item->intParam1 = maxSize;
     item->intParam2 = constraints;
     item->label[0] = '\0';
@@ -205,6 +236,16 @@ static s32 n_formAddTextField(Runtime *runtime, JClass *clazz) {
         }
         utf8_destroy(u);
     }
+
+    // Auto-detect ChoiceGroup payload even if called via formAddTextField:
+    // Format: "selectedIndex\nopt1\topt2...\nflags..."
+    if ((strchr(item->text, '\n') && (strchr(item->text, '\t') || strchr(item->text, ','))) ||
+        (maxSize >= 1 && maxSize <= 4 && constraints == maxSize && strchr(item->text, '\n'))) {
+        item->type = 2; // ChoiceGroup
+    } else {
+        item->type = 1; // TextField
+    }
+
     return RUNTIME_STATUS_NORMAL;
 }
 
@@ -388,10 +429,11 @@ static s32 n_getFormItemText(Runtime *runtime, JClass *clazz) {
 #define CLS "javax/microedition/lcdui/NativeBridge"
 
 static java_native_method j2me_ui_methods[] = {
-    {CLS, "formBegin",        "(Ljava/lang/String;I)V",                          n_formBegin},
-    {CLS, "formAddStringItem","(Ljava/lang/String;Ljava/lang/String;I)V",        n_formAddStringItem},
-    {CLS, "formAddTextField", "(Ljava/lang/String;Ljava/lang/String;II)V",       n_formAddTextField},
-    {CLS, "formAddCommand",   "(Ljava/lang/String;III)V",                        n_formAddCommand},
+    {CLS, "formBegin",         "(Ljava/lang/String;I)V",                          n_formBegin},
+    {CLS, "formAddStringItem", "(Ljava/lang/String;Ljava/lang/String;I)V",        n_formAddStringItem},
+    {CLS, "formAddTextField",  "(Ljava/lang/String;Ljava/lang/String;II)V",       n_formAddTextField},
+    {CLS, "formAddChoiceGroup","(Ljava/lang/String;Ljava/lang/String;I)V",        n_formAddChoiceGroup},
+    {CLS, "formAddCommand",    "(Ljava/lang/String;III)V",                        n_formAddCommand},
     {CLS, "formShow",         "()V",                                             n_formShow},
     {CLS, "showCanvas",       "()V",                                             n_showCanvas},
     {CLS, "listAddItem",      "(Ljava/lang/String;Z)V",                          n_listAddItem},
