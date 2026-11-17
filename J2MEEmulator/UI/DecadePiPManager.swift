@@ -87,6 +87,10 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         let controller = AVPictureInPictureController(contentSource: contentSource)
         controller.delegate = self
         controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.requiresLinearPlayback = true
+        if controller.responds(to: Selector(("setControlsStyle:"))) {
+            controller.setValue(1, forKey: "controlsStyle")
+        }
         self.pipController = controller
         print("[PiP] Setup completed with AVSampleBufferDisplayLayer")
     }

@@ -76,6 +76,8 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
         titleLabel.text = "🎮 Vạn Trần - Tab 1"
         titleLabel.textColor = .white
         titleLabel.font = .systemFont(ofSize: 11, weight: .bold)
+        titleLabel.isUserInteractionEnabled = true
+        titleLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(minimizeTapped)))
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         headerBar.addSubview(titleLabel)
 
