@@ -69,13 +69,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.4-native
-          name: "Vạn Trần J2ME Native iOS v2.4"
+          tag_name: v2.5-native
+          name: "Vạn Trần J2ME Native iOS v2.5"
           body: |
-            ## Vạn Trần J2ME iOS v2.4 — Native Multi-Tab Engine
+            ## Vạn Trần J2ME iOS v2.5 — Native Multi-Tab Engine
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - **Bên trong ứng dụng (như bản 2.2)**: Giữ nguyên giao diện chuẩn, khi bật chạy nền chỉ hiển thị bong bóng nổi AssistiveTouch tròn nhỏ gọn; chạm vào bong bóng mở menu thao tác đầy đủ tiện ích (quay lại game, chuyển tab, proxy, bật/tắt PiP ngoài màn hình, màn hình đen). Không bị che màn hình game.
-            - **Cửa sổ nổi ngoài màn hình chính (PiP Wide - Đè ứng dụng khác)**: Tự động chạy nổi trên màn hình chính (Home Screen) và ghi đè trên mọi ứng dụng khác (Facebook, Safari, TikTok, Messenger...).
+            - **Fix triệt để lỗi ghi đè 2 màn hình bên trong game**: Cô lập hoàn toàn DisplayLayer của PiP sang host view riêng biệt; màn hình game bên trong giờ đây hiển thị 1 màn hình duy nhất cực kỳ sắc nét và chuẩn xác, không còn bị lồng 2 màn hình.
+            - **Cửa sổ ngoài màn hình: Nút 1 chạm biến thành Bong bóng / Hiện lại cửa sổ**:
+              - Khi cửa sổ game đang nổi ngoài màn hình, chạm 1 chạm vào nút ở giữa (▶ / ⏸) hoặc nút tua: Cửa sổ sẽ lập tức biến thành **Bong bóng tròn nổi AssistiveTouch** (có vòng tròn phát sáng neon cyan và hiển thị trực tiếp game chạy mini bên trong).
+              - Chạm 1 chạm nữa vào nút: Bong bóng lập tức bung trở lại thành **Cửa sổ game to đầy đủ**!
             - **Tự do kéo to nhỏ tuỳ ý ngoài màn hình chính**:
               1. **Dùng 2 ngón tay thu phóng (Pinch)**: Kéo giãn ra để phóng to cực đại tràn hết toàn bộ chiều ngang màn hình iPhone (~390pt) hoặc thu nhỏ tuỳ ý.
               2. **Chạm 2 lần (Double Tap)**: Chạm đúp nhanh 2 lần để phóng to cực đại hoặc thu nhỏ tức thì.

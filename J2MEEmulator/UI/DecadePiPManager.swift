@@ -61,7 +61,7 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         displayLayer.frame = sourceView.bounds
 
         if displayLayer.superlayer == nil {
-            sourceView.layer.insertSublayer(displayLayer, at: 0)
+            sourceView.layer.addSublayer(displayLayer)
         }
 
         // Setup PiP Controller with ContentSource(sampleBufferDisplayLayer:playbackDelegate:)
@@ -205,13 +205,94 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
 
-        // Clear container background with clean black
-        context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
-        context.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
+        if isBubbleMode {
+            // Draw clean dark background
+            context.setFillColor(red: 0.05, green: 0.06, blue: 0.08, alpha: 1.0)
+            context.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
 
-        // Draw game frame centered and pixel-perfect
-        context.interpolationQuality = .none
-        context.draw(cgImage, in: CGRect(x: drawX, y: drawY, width: origW, height: origH))
+            let centerX = CGFloat(targetW) / 2.0
+            let centerY = CGFloat(targetH) / 2.0
+            let bubbleRadius: CGFloat = 85.0
+
+            // Outer cyan glowing halo
+            context.setStrokeColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 0.35)
+            context.setLineWidth(10)
+            context.strokeEllipse(in: CGRect(
+                x: centerX - bubbleRadius - 3,
+                y: centerY - bubbleRadius - 3,
+                width: (bubbleRadius + 3) * 2,
+                height: (bubbleRadius + 3) * 2
+            ))
+
+            // Main cyan ring
+            context.setStrokeColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 1.0)
+            context.setLineWidth(4)
+            context.strokeEllipse(in: CGRect(
+                x: centerX - bubbleRadius,
+                y: centerY - bubbleRadius,
+                width: bubbleRadius * 2,
+                height: bubbleRadius * 2
+            ))
+
+            // Inner circle base
+            context.setFillColor(red: 0.09, green: 0.11, blue: 0.15, alpha: 1.0)
+            context.fillEllipse(in: CGRect(
+                x: centerX - bubbleRadius + 2,
+                y: centerY - bubbleRadius + 2,
+                width: (bubbleRadius - 2) * 2,
+                height: (bubbleRadius - 2) * 2
+            ))
+
+            // Clip to circle and draw live game thumbnail inside
+            context.saveGState()
+            let clipRadius = bubbleRadius - 6
+            context.addEllipse(in: CGRect(
+                x: centerX - clipRadius,
+                y: centerY - clipRadius,
+                width: clipRadius * 2,
+                height: clipRadius * 2
+            ))
+            context.clip()
+
+            let thumbW = CGFloat(origW) * (clipRadius * 2 / CGFloat(origH))
+            let thumbH = clipRadius * 2
+            let thumbX = centerX - thumbW / 2
+            let thumbY = centerY - thumbH / 2
+            context.interpolationQuality = .high
+            context.draw(cgImage, in: CGRect(x: thumbX, y: thumbY, width: thumbW, height: thumbH))
+            context.restoreGState()
+
+            // Draw hint text
+            context.saveGState()
+            context.translateBy(x: 0, y: CGFloat(targetH))
+            context.scaleBy(x: 1.0, y: -1.0)
+            UIGraphicsPushContext(context)
+
+            let hintText = "● BONG BÓNG • CHẠM ▶ MỞ CỬA SỔ ●"
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 12, weight: .bold),
+                .foregroundColor: UIColor(red: 0.20, green: 0.75, blue: 1.0, alpha: 1.0)
+            ]
+            let textSize = (hintText as NSString).size(withAttributes: attrs)
+            let textRect = CGRect(
+                x: (CGFloat(targetW) - textSize.width) / 2,
+                y: CGFloat(targetH) - 24,
+                width: textSize.width,
+                height: textSize.height
+            )
+            (hintText as NSString).draw(in: textRect, withAttributes: attrs)
+
+            UIGraphicsPopContext()
+            context.restoreGState()
+        } else {
+            // Clear container background with clean black
+            context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
+            context.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
+
+            // Draw game frame centered and pixel-perfect
+            context.interpolationQuality = .none
+            context.draw(cgImage, in: CGRect(x: drawX, y: drawY, width: origW, height: origH))
+        }
 
         var formatDesc: CMVideoFormatDescription?
         let vStatus = CMVideoFormatDescriptionCreateForImageBuffer(
@@ -241,13 +322,14 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
     }
 
     // MARK: - AVPictureInPictureSampleBufferPlaybackDelegate
-    private var isPiPBubbleOnly: Bool = false
+    var isBubbleMode: Bool = false
 
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         setPlaying playing: Bool
     ) {
-        isPiPBubbleOnly.toggle()
+        isBubbleMode.toggle()
+        print("[PiP] Toggled bubble mode via center button: \(isBubbleMode)")
     }
 
     func pictureInPictureControllerTimeRangeForPlayback(
@@ -260,7 +342,7 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
     func pictureInPictureControllerIsPlaybackPaused(
         _ pictureInPictureController: AVPictureInPictureController
     ) -> Bool {
-        return false
+        return isBubbleMode
     }
 
     func pictureInPictureController(
@@ -275,6 +357,7 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         skipByInterval skipInterval: CMTime,
         completion completionHandler: @escaping () -> Void
     ) {
+        isBubbleMode.toggle()
         completionHandler()
     }
 

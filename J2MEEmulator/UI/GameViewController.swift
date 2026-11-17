@@ -56,6 +56,7 @@ class GameViewController: UIViewController {
     }
 
     let emulatorView = EmulatorView()
+    private let pipHostView = UIView()
     private let glowContainer = UIView()
     private let glowContentView = UIView()
 
@@ -230,8 +231,13 @@ class GameViewController: UIViewController {
         j2me_ui_set_callback(gameUICallback)
         activeGameViewController = self
 
-        // Setup Picture-in-Picture
-        DecadePiPManager.shared.setup(sourceView: emulatorView)
+        // Setup isolated Picture-in-Picture host view (prevents double screen overlapping bug)
+        pipHostView.frame = CGRect(x: 0, y: 0, width: 2, height: 2)
+        pipHostView.alpha = 0.01
+        pipHostView.isUserInteractionEnabled = false
+        view.insertSubview(pipHostView, at: 0)
+
+        DecadePiPManager.shared.setup(sourceView: pipHostView)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -241,6 +247,7 @@ class GameViewController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        pipHostView.frame = CGRect(x: 0, y: 0, width: 2, height: 2)
         DecadePiPManager.shared.updateLayout()
     }
 
