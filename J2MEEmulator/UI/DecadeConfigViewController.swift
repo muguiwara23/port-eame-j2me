@@ -2,7 +2,9 @@
 //  DecadeConfigViewController.swift
 //  J2MEEmulator
 //
-//  Authentic Decade 1:1 Configuration / Settings screen (matches Android Decade ConfigActivity).
+//  Giao diện "Cài Đặt Game" chuẩn phong cách hiện đại theo đúng thiết kế bản Chơi Game Tuổi Thơ.
+//  Bao gồm các mục Màn Hình (Cỡ màn hình, Độ phân giải, Khung hình/giây) và
+//  Khi Chơi (Cài đặt bàn phím, Treo khi ra ngoài, Âm thanh game).
 //
 
 import UIKit
@@ -13,18 +15,40 @@ class DecadeConfigViewController: UIViewController {
     private let onStartGame: ((Int, Int, Int) -> Void)?
 
     private let scrollView = UIScrollView()
-    private let contentView = UIStackView()
+    private let contentStack = UIStackView()
 
-    // Form inputs
-    private let widthField = UITextField()
-    private let heightField = UITextField()
-    private let aspectSwitch = UISwitch()
-    private let fpsLimitSegment = UISegmentedControl(items: ["Không giới hạn", "15", "20", "30", "60"])
-    private let layoutSegment = UISegmentedControl(items: ["Mũi tên", "Số & Mũi tên", "Điện thoại"])
-    private let alphaSlider = UISlider()
-    private let alphaLabel = UILabel()
-    private let fullscreenSwitch = UISwitch()
-    private let showFpsSwitch = UISwitch()
+    // State for Màn Hình
+    private var selectedScreenSizeIndex: Int = 0
+    private let screenSizes: [(label: String, w: Int, h: Int)] = [
+        ("Tự Động", 0, 0),
+        ("240 × 320", 240, 320),
+        ("320 × 240", 320, 240),
+        ("360 × 640", 360, 640),
+        ("480 × 800", 480, 800),
+        ("Tự Chọn", -1, -1)
+    ]
+    private var screenSizeButtons: [PillButton] = []
+
+    // State for Độ Phân Giải
+    private var selectedResIndex: Int = 3 // 360 default
+    private let resOptions: [(label: String, val: Int)] = [
+        ("Theo Máy", 0),
+        ("240", 240),
+        ("320", 320),
+        ("360", 360),
+        ("480", 480)
+    ]
+    private var resButtons: [PillButton] = []
+
+    // State for Khung Hình / Giây
+    private var selectedFpsIndex: Int = 4 // 60 default
+    private let fpsOptions: [Int] = [10, 15, 20, 30, 60]
+    private var fpsButtons: [PillButton] = []
+
+    // State for Khi Chơi
+    private let keyboardStatusLabel = UILabel()
+    private let treoSwitch = UISwitch()
+    private let soundSwitch = UISwitch()
 
     init(app: AppsListViewController.AppInfo, onStart: ((Int, Int, Int) -> Void)? = nil) {
         self.app = app
@@ -36,36 +60,43 @@ class DecadeConfigViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { .darkContent }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         overrideUserInterfaceStyle = .light
-        view.backgroundColor = .white
+        view.backgroundColor = UIColor(red: 0.957, green: 0.973, blue: 0.957, alpha: 1.0) // Soft mint #F4F8F4
 
         setupNavBar()
         setupUI()
         loadSavedValues()
     }
 
+    private var gid: String {
+        let jarName = URL(fileURLWithPath: app.path).deletingPathExtension().lastPathComponent
+        return jarName.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "_", options: .regularExpression)
+    }
+
     // ============================================================
-    // MARK: - Navigation Bar matching Screenshot 3
+    // MARK: - Navigation Bar
     // ============================================================
 
     private func setupNavBar() {
-        let navBarAppearance = UINavigationBarAppearance()
-        navBarAppearance.configureWithOpaqueBackground()
-        navBarAppearance.backgroundColor = UIColor(red: 0.13, green: 0.13, blue: 0.13, alpha: 1.0)
-        navBarAppearance.titleTextAttributes = [
-            .foregroundColor: UIColor.white,
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(red: 0.957, green: 0.973, blue: 0.957, alpha: 1.0)
+        appearance.shadowColor = .clear
+        appearance.titleTextAttributes = [
+            .foregroundColor: UIColor(red: 0.08, green: 0.12, blue: 0.08, alpha: 1.0),
             .font: UIFont.systemFont(ofSize: 18, weight: .bold)
         ]
-        navigationController?.navigationBar.standardAppearance = navBarAppearance
-        navigationController?.navigationBar.scrollEdgeAppearance = navBarAppearance
-        navigationController?.navigationBar.tintColor = .white
 
-        title = app.name
+        navigationController?.navigationBar.standardAppearance = appearance
+        navigationController?.navigationBar.scrollEdgeAppearance = appearance
+        navigationController?.navigationBar.tintColor = UIColor(red: 0.10, green: 0.14, blue: 0.10, alpha: 1.0)
+
+        title = "Cài Đặt Game"
 
         // Back button on left
         navigationItem.leftBarButtonItem = UIBarButtonItem(
@@ -74,80 +105,40 @@ class DecadeConfigViewController: UIViewController {
             target: self,
             action: #selector(backTapped)
         )
-
-        // "BẮT ĐẦU" (Start) or "LƯU & ÁP DỤNG" (Save & Apply) button on right
-        let isEditingInGame = (onStartGame == nil)
-        let rightBtnTitle = isEditingInGame ? "LƯU & ÁP DỤNG" : "BẮT ĐẦU"
-        let startBtn = UIBarButtonItem(
-            title: rightBtnTitle,
-            style: .done,
-            target: self,
-            action: #selector(startTapped)
-        )
-        startBtn.setTitleTextAttributes([
-            .font: UIFont.systemFont(ofSize: 16, weight: .bold),
-            .foregroundColor: UIColor.white
-        ], for: .normal)
-
-        let moreBtn = UIBarButtonItem(
-            image: UIImage(systemName: "ellipsis"),
-            style: .plain,
-            target: self,
-            action: #selector(moreTapped)
-        )
-
-        navigationItem.rightBarButtonItems = [moreBtn, startBtn]
     }
 
     @objc private func backTapped() {
         saveValues()
-        if presentingViewController != nil {
+        if let onStart = onStartGame {
+            let size = screenSizes[selectedScreenSizeIndex]
+            let w = size.w > 0 ? size.w : 240
+            let h = size.h > 0 ? size.h : 320
+            let fps = fpsOptions[selectedFpsIndex]
+            dismiss(animated: true) {
+                onStart(w, h, fps)
+            }
+        } else if presentingViewController != nil {
             dismiss(animated: true)
         } else {
             navigationController?.popViewController(animated: true)
         }
     }
 
-    @objc private func startTapped() {
-        saveValues()
-        let w = Int(widthField.text ?? "") ?? 240
-        let h = Int(heightField.text ?? "") ?? 320
-        let fpsIdx = fpsLimitSegment.selectedSegmentIndex
-        let fpsValues = [0, 15, 20, 30, 60]
-        let fps = (fpsIdx >= 0 && fpsIdx < fpsValues.count) ? fpsValues[fpsIdx] : 0
-
-        if let onStart = onStartGame {
-            dismiss(animated: true) {
-                onStart(w, h, fps)
-            }
-        } else {
-            dismiss(animated: true)
-        }
-    }
-
-    @objc private func moreTapped() {
-        let alert = UIAlertController(title: "Tùy chọn", message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Khôi phục mặc định", style: .default) { [weak self] _ in
-            self?.resetDefaults()
-        })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
-        present(alert, animated: true)
-    }
-
     // ============================================================
-    // MARK: - UI Layout matching Screenshot 3
+    // MARK: - Setup UI
     // ============================================================
 
     private func setupUI() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.showsVerticalScrollIndicator = false
         view.addSubview(scrollView)
 
-        contentView.axis = .vertical
-        contentView.spacing = 16
-        contentView.layoutMargins = UIEdgeInsets(top: 16, left: 14, bottom: 30, right: 14)
-        contentView.isLayoutMarginsRelativeArrangement = true
-        contentView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(contentView)
+        contentStack.axis = .vertical
+        contentStack.spacing = 20
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        contentStack.layoutMargins = UIEdgeInsets(top: 12, left: 16, bottom: 32, right: 16)
+        contentStack.isLayoutMarginsRelativeArrangement = true
+        scrollView.addSubview(contentStack)
 
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
@@ -155,374 +146,524 @@ class DecadeConfigViewController: UIViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            contentView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            contentView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            contentView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            contentView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-            contentView.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
+            contentStack.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            contentStack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            contentStack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            contentStack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            contentStack.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
         ])
 
-        // 1. "Tùy chọn màn hình" Card
-        contentView.addArrangedSubview(buildScreenOptionsCard())
+        // 1. SECTION: MÀN HÌNH
+        buildScreenSection()
 
-        // 2. "Tùy chọn phông chữ" Card
-        contentView.addArrangedSubview(buildFontOptionsCard())
-
-        // 3. "Bàn phím ảo" Card
-        contentView.addArrangedSubview(buildVirtualKeyboardCard())
-    }
-
-    /// Card 1: "Tùy chọn màn hình" matching Screenshot 3
-    private func buildScreenOptionsCard() -> UIView {
-        let card = makeRedBorderCard(title: "Tùy chọn màn hình")
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 14
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 36),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-        ])
-
-        // Resolution Row: [Preset List Icon] [ Width ] [ ⇄ ] [ Height ] [ Swap ]
-        let resRow = UIStackView()
-        resRow.axis = .horizontal
-        resRow.spacing = 10
-        resRow.alignment = .center
-
-        let presetBtn = UIButton(type: .system)
-        presetBtn.setImage(UIImage(systemName: "list.bullet"), for: .normal)
-        presetBtn.tintColor = UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0)
-        presetBtn.addTarget(self, action: #selector(showPresets), for: .touchUpInside)
-
-        widthField.borderStyle = .none
-        widthField.font = .systemFont(ofSize: 22, weight: .bold)
-        widthField.textAlignment = .center
-        widthField.keyboardType = .numberPad
-        widthField.textColor = .black
-        let wUnderline = makeUnderlineView(for: widthField)
-
-        let swapBtn = UIButton(type: .system)
-        swapBtn.setImage(UIImage(systemName: "arrow.left.arrow.right"), for: .normal)
-        swapBtn.tintColor = UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0)
-        swapBtn.addTarget(self, action: #selector(swapResolution), for: .touchUpInside)
-
-        heightField.borderStyle = .none
-        heightField.font = .systemFont(ofSize: 22, weight: .bold)
-        heightField.textAlignment = .center
-        heightField.keyboardType = .numberPad
-        heightField.textColor = .black
-        let hUnderline = makeUnderlineView(for: heightField)
-
-        resRow.addArrangedSubview(presetBtn)
-        resRow.addArrangedSubview(wUnderline)
-        resRow.addArrangedSubview(swapBtn)
-        resRow.addArrangedSubview(hUnderline)
-
-        stack.addArrangedSubview(resRow)
-
-        // Checkbox: Giữ tỷ lệ khung hình
-        let aspectRow = UIStackView()
-        aspectRow.axis = .horizontal
-        aspectRow.spacing = 10
-        aspectRow.alignment = .center
-
-        let aspectLabel = UILabel()
-        aspectLabel.text = "Giữ tỷ lệ khung hình"
-        aspectLabel.font = .systemFont(ofSize: 16)
-        aspectLabel.textColor = .black
-        aspectRow.addArrangedSubview(aspectLabel)
-        aspectRow.addArrangedSubview(UIView()) // spacer
-        aspectRow.addArrangedSubview(aspectSwitch)
-        stack.addArrangedSubview(aspectRow)
-
-        // Background Color preview: [NỀN] D0D0D0
-        let bgRow = UIStackView()
-        bgRow.axis = .horizontal
-        bgRow.spacing = 12
-        bgRow.alignment = .center
-
-        let bgBtn = UIButton(type: .system)
-        bgBtn.setTitle("NỀN", for: .normal)
-        bgBtn.backgroundColor = UIColor(red: 0.18, green: 0.18, blue: 0.18, alpha: 1.0)
-        bgBtn.setTitleColor(.white, for: .normal)
-        bgBtn.layer.cornerRadius = 4
-        bgBtn.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
-        bgBtn.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        bgBtn.heightAnchor.constraint(equalToConstant: 34).isActive = true
-
-        let hexLabel = UILabel()
-        hexLabel.text = "D0D0D0"
-        hexLabel.font = .systemFont(ofSize: 15, weight: .medium)
-        hexLabel.textColor = .darkGray
-
-        let colorSwatch = UIView()
-        colorSwatch.backgroundColor = UIColor(red: 0.82, green: 0.82, blue: 0.82, alpha: 1.0)
-        colorSwatch.layer.cornerRadius = 4
-        colorSwatch.widthAnchor.constraint(equalToConstant: 32).isActive = true
-        colorSwatch.heightAnchor.constraint(equalToConstant: 32).isActive = true
-
-        bgRow.addArrangedSubview(bgBtn)
-        bgRow.addArrangedSubview(hexLabel)
-        bgRow.addArrangedSubview(UIView())
-        bgRow.addArrangedSubview(colorSwatch)
-        stack.addArrangedSubview(bgRow)
-
-        // Hiển thị FPS
-        let fpsRow = UIStackView()
-        fpsRow.axis = .horizontal
-        fpsRow.alignment = .center
-        let fpsLabel = UILabel()
-        fpsLabel.text = "Hiển thị FPS"
-        fpsLabel.font = .systemFont(ofSize: 16)
-        fpsLabel.textColor = .black
-        fpsRow.addArrangedSubview(fpsLabel)
-        fpsRow.addArrangedSubview(UIView())
-        fpsRow.addArrangedSubview(showFpsSwitch)
-        stack.addArrangedSubview(fpsRow)
-
-        // Giới hạn FPS
-        let fpsLimitRow = UIStackView()
-        fpsLimitRow.axis = .vertical
-        fpsLimitRow.spacing = 6
-        let fpsTitle = UILabel()
-        fpsTitle.text = "Giới hạn FPS"
-        fpsTitle.font = .systemFont(ofSize: 15)
-        fpsTitle.textColor = .darkGray
-        fpsLimitRow.addArrangedSubview(fpsTitle)
-        fpsLimitRow.addArrangedSubview(fpsLimitSegment)
-        stack.addArrangedSubview(fpsLimitRow)
-
-        // Bắt buộc toàn màn hình
-        let fsRow = UIStackView()
-        fsRow.axis = .horizontal
-        fsRow.alignment = .center
-        let fsLabel = UILabel()
-        fsLabel.text = "Bắt buộc toàn màn hình"
-        fsLabel.font = .systemFont(ofSize: 16)
-        fsLabel.textColor = .black
-        fsRow.addArrangedSubview(fsLabel)
-        fsRow.addArrangedSubview(UIView())
-        fsRow.addArrangedSubview(fullscreenSwitch)
-        stack.addArrangedSubview(fsRow)
-
-        return card
-    }
-
-    /// Card 2: "Tùy chọn phông chữ"
-    private func buildFontOptionsCard() -> UIView {
-        let card = makeRedBorderCard(title: "Tùy chọn phông chữ")
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 10
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 36),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-        ])
-
-        let fontDesc = UILabel()
-        fontDesc.text = "Cỡ chữ: Nhỏ (18), Trung bình (22), Lớn (26)\nKhử răng cưa phông chữ được kích hoạt."
-        fontDesc.numberOfLines = 0
-        fontDesc.font = .systemFont(ofSize: 14)
-        fontDesc.textColor = .darkGray
-        stack.addArrangedSubview(fontDesc)
-
-        return card
-    }
-
-    /// Card 3: "Bàn phím ảo"
-    private func buildVirtualKeyboardCard() -> UIView {
-        let card = makeRedBorderCard(title: "Bàn phím ảo")
-        let stack = UIStackView()
-        stack.axis = .vertical
-        stack.spacing = 12
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: card.topAnchor, constant: 36),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -14),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14),
-        ])
-
-        let layoutTitle = UILabel()
-        layoutTitle.text = "Cấu trúc phím"
-        layoutTitle.font = .systemFont(ofSize: 15)
-        layoutTitle.textColor = .darkGray
-        stack.addArrangedSubview(layoutTitle)
-        stack.addArrangedSubview(layoutSegment)
-
-        // Opacity Slider
-        let alphaRow = UIStackView()
-        alphaRow.axis = .horizontal
-        alphaRow.spacing = 8
-        alphaRow.alignment = .center
-
-        let alphaTitle = UILabel()
-        alphaTitle.text = "Độ trong suốt:"
-        alphaTitle.font = .systemFont(ofSize: 15)
-        alphaTitle.textColor = .darkGray
-
-        alphaSlider.minimumValue = 10
-        alphaSlider.maximumValue = 255
-        alphaSlider.value = 64
-        alphaSlider.addTarget(self, action: #selector(alphaChanged), for: .valueChanged)
-
-        alphaLabel.text = "64 (25%)"
-        alphaLabel.font = .systemFont(ofSize: 14, weight: .bold)
-        alphaLabel.textColor = .black
-        alphaLabel.widthAnchor.constraint(equalToConstant: 80).isActive = true
-
-        alphaRow.addArrangedSubview(alphaTitle)
-        alphaRow.addArrangedSubview(alphaSlider)
-        alphaRow.addArrangedSubview(alphaLabel)
-        stack.addArrangedSubview(alphaRow)
-
-        return card
+        // 2. SECTION: KHI CHƠI
+        buildGameplaySection()
     }
 
     // ============================================================
-    // MARK: - Helpers
+    // MARK: - Section 1: Màn Hình
     // ============================================================
 
-    private func makeRedBorderCard(title: String) -> UIView {
-        let container = UIView()
-        container.backgroundColor = .white
-        container.layer.cornerRadius = 8
-        container.layer.borderWidth = 1.5
-        container.layer.borderColor = UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 0.7).cgColor
+    private func buildScreenSection() {
+        // Section Header
+        let header = makeSectionHeader(
+            icon: "display",
+            iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
+            iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
+            title: "Màn Hình"
+        )
+        contentStack.addArrangedSubview(header)
 
-        let titleLabel = UILabel()
-        titleLabel.text = title
-        titleLabel.font = .systemFont(ofSize: 16, weight: .medium)
-        titleLabel.textColor = .black
-        titleLabel.textAlignment = .center
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(titleLabel)
+        // Card Container
+        let card = makeCardView()
+        let cardStack = UIStackView()
+        cardStack.axis = .vertical
+        cardStack.spacing = 16
+        cardStack.translatesAutoresizingMaskIntoConstraints = false
+        cardStack.layoutMargins = UIEdgeInsets(top: 18, left: 16, bottom: 18, right: 16)
+        cardStack.isLayoutMarginsRelativeArrangement = true
+        card.addSubview(cardStack)
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
-            titleLabel.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            cardStack.topAnchor.constraint(equalTo: card.topAnchor),
+            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor)
         ])
 
+        // Row 1: Cỡ Màn Hình
+        let sizeRowHeader = makeRowHeader(
+            icon: "iphone",
+            iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
+            iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
+            title: "Cỡ Màn Hình",
+            subtitle: "Tự Động Kín Màn, Không Méo"
+        )
+        cardStack.addArrangedSubview(sizeRowHeader)
+
+        // Grid of 6 buttons (3 rows x 2 cols)
+        let sizeGrid = UIStackView()
+        sizeGrid.axis = .vertical
+        sizeGrid.spacing = 8
+        screenSizeButtons.removeAll()
+
+        for r in 0..<3 {
+            let rowStack = UIStackView()
+            rowStack.axis = .horizontal
+            rowStack.spacing = 8
+            rowStack.distribution = .fillEqually
+
+            for c in 0..<2 {
+                let idx = r * 2 + c
+                let item = screenSizes[idx]
+                let btn = PillButton(title: item.label)
+                btn.tag = idx
+                btn.addTarget(self, action: #selector(screenSizeTapped(_:)), for: .touchUpInside)
+                rowStack.addArrangedSubview(btn)
+                screenSizeButtons.append(btn)
+            }
+            sizeGrid.addArrangedSubview(rowStack)
+        }
+        cardStack.addArrangedSubview(sizeGrid)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
+        // Row 2: Độ Phân Giải
+        let resRowHeader = makeRowHeader(
+            icon: "sparkles.tv",
+            iconBg: UIColor(red: 0.94, green: 0.90, blue: 0.98, alpha: 1.0),
+            iconTint: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
+            title: "Độ Phân Giải",
+            subtitle: "Nhỏ: Chữ To · Lớn: Thấy Rộng"
+        )
+        cardStack.addArrangedSubview(resRowHeader)
+
+        let resRowStack = UIStackView()
+        resRowStack.axis = .horizontal
+        resRowStack.spacing = 8
+        resRowStack.distribution = .fillEqually
+        resButtons.removeAll()
+
+        for (idx, opt) in resOptions.enumerated() {
+            let btn = PillButton(title: opt.label)
+            btn.tag = idx
+            btn.addTarget(self, action: #selector(resTapped(_:)), for: .touchUpInside)
+            resRowStack.addArrangedSubview(btn)
+            resButtons.append(btn)
+        }
+        cardStack.addArrangedSubview(resRowStack)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
+        // Row 3: Khung Hình / Giây
+        let fpsRowHeader = makeRowHeader(
+            icon: "gauge.with.needle",
+            iconBg: UIColor(red: 0.94, green: 0.90, blue: 0.98, alpha: 1.0),
+            iconTint: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
+            title: "Khung Hình / Giây",
+            subtitle: "Ít Hơn Thì Đỡ Pin Khi Treo"
+        )
+        cardStack.addArrangedSubview(fpsRowHeader)
+
+        let fpsRowStack = UIStackView()
+        fpsRowStack.axis = .horizontal
+        fpsRowStack.spacing = 8
+        fpsRowStack.distribution = .fillEqually
+        fpsButtons.removeAll()
+
+        for (idx, val) in fpsOptions.enumerated() {
+            let btn = PillButton(title: "\(val)")
+            btn.tag = idx
+            btn.addTarget(self, action: #selector(fpsTapped(_:)), for: .touchUpInside)
+            fpsRowStack.addArrangedSubview(btn)
+            fpsButtons.append(btn)
+        }
+        cardStack.addArrangedSubview(fpsRowStack)
+
+        contentStack.addArrangedSubview(card)
+    }
+
+    // ============================================================
+    // MARK: - Section 2: Khi Chơi
+    // ============================================================
+
+    private func buildGameplaySection() {
+        // Section Header
+        let header = makeSectionHeader(
+            icon: "gamecontroller",
+            iconBg: UIColor(red: 0.94, green: 0.90, blue: 0.98, alpha: 1.0),
+            iconTint: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
+            title: "Khi Chơi"
+        )
+        contentStack.addArrangedSubview(header)
+
+        // Card Container
+        let card = makeCardView()
+        let cardStack = UIStackView()
+        cardStack.axis = .vertical
+        cardStack.spacing = 14
+        cardStack.translatesAutoresizingMaskIntoConstraints = false
+        cardStack.layoutMargins = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        cardStack.isLayoutMarginsRelativeArrangement = true
+        card.addSubview(cardStack)
+
+        NSLayoutConstraint.activate([
+            cardStack.topAnchor.constraint(equalTo: card.topAnchor),
+            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor)
+        ])
+
+        // Item 1: Cài Đặt Bàn Phím
+        let kbRow = UIView()
+        let kbIcon = makeChipIcon("keyboard", bg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0), tint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0))
+        let kbTitle = UILabel()
+        kbTitle.text = "Cài Đặt Bàn Phím"
+        kbTitle.font = .systemFont(ofSize: 15, weight: .semibold)
+        kbTitle.textColor = UIColor(red: 0.10, green: 0.14, blue: 0.10, alpha: 1.0)
+
+        keyboardStatusLabel.text = "Đang Hiện"
+        keyboardStatusLabel.font = .systemFont(ofSize: 13, weight: .regular)
+        keyboardStatusLabel.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
+
+        let textStack = UIStackView(arrangedSubviews: [kbTitle, keyboardStatusLabel])
+        textStack.axis = .vertical
+        textStack.spacing = 2
+
+        let chevron = UIImageView(image: UIImage(systemName: "chevron.right"))
+        chevron.tintColor = UIColor(white: 0.75, alpha: 1.0)
+        chevron.contentMode = .scaleAspectFit
+
+        kbIcon.translatesAutoresizingMaskIntoConstraints = false
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+
+        kbRow.addSubview(kbIcon)
+        kbRow.addSubview(textStack)
+        kbRow.addSubview(chevron)
+
+        NSLayoutConstraint.activate([
+            kbIcon.leadingAnchor.constraint(equalTo: kbRow.leadingAnchor),
+            kbIcon.centerYAnchor.constraint(equalTo: kbRow.centerYAnchor),
+            kbIcon.widthAnchor.constraint(equalToConstant: 36),
+            kbIcon.heightAnchor.constraint(equalToConstant: 36),
+
+            textStack.leadingAnchor.constraint(equalTo: kbIcon.trailingAnchor, constant: 12),
+            textStack.centerYAnchor.constraint(equalTo: kbRow.centerYAnchor),
+
+            chevron.trailingAnchor.constraint(equalTo: kbRow.trailingAnchor),
+            chevron.centerYAnchor.constraint(equalTo: kbRow.centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 14),
+            chevron.heightAnchor.constraint(equalToConstant: 14),
+            kbRow.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        let kbTap = UITapGestureRecognizer(target: self, action: #selector(keyboardSettingsTapped))
+        kbRow.addGestureRecognizer(kbTap)
+        kbRow.isUserInteractionEnabled = true
+        cardStack.addArrangedSubview(kbRow)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
+        // Item 2: Treo Khi Ra Ngoài (Khóa Máy Game Vẫn Chạy)
+        let treoRow = makeToggleRow(
+            icon: "moon.fill",
+            iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
+            iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
+            title: "Treo Khi Ra Ngoài",
+            subtitle: "Khóa Máy Game Vẫn Chạy",
+            toggle: treoSwitch,
+            action: #selector(treoSwitchChanged(_:))
+        )
+        cardStack.addArrangedSubview(treoRow)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
+        // Item 3: Âm Thanh Game (Nhạc Nền Và Tiếng Hiệu Ứng)
+        let soundRow = makeToggleRow(
+            icon: "speaker.wave.2.fill",
+            iconBg: UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1.0),
+            iconTint: UIColor(red: 0.95, green: 0.55, blue: 0.15, alpha: 1.0),
+            title: "Âm Thanh Game",
+            subtitle: "Nhạc Nền Và Tiếng Hiệu Ứng",
+            toggle: soundSwitch,
+            action: #selector(soundSwitchChanged(_:))
+        )
+        cardStack.addArrangedSubview(soundRow)
+
+        contentStack.addArrangedSubview(card)
+    }
+
+    // ============================================================
+    // MARK: - Component Helpers
+    // ============================================================
+
+    private func makeCardView() -> UIView {
+        let card = UIView()
+        card.backgroundColor = .white
+        card.layer.cornerRadius = 16
+        card.layer.shadowColor = UIColor.black.cgColor
+        card.layer.shadowOpacity = 0.04
+        card.layer.shadowOffset = CGSize(width: 0, height: 2)
+        card.layer.shadowRadius = 8
+        card.translatesAutoresizingMaskIntoConstraints = false
+        return card
+    }
+
+    private func makeSectionHeader(icon: String, iconBg: UIColor, iconTint: UIColor, title: String) -> UIView {
+        let container = UIStackView()
+        container.axis = .horizontal
+        container.spacing = 10
+        container.alignment = .center
+
+        let chip = makeChipIcon(icon, bg: iconBg, tint: iconTint)
+        let lbl = UILabel()
+        lbl.text = title
+        lbl.font = .systemFont(ofSize: 16, weight: .bold)
+        lbl.textColor = UIColor(red: 0.10, green: 0.14, blue: 0.10, alpha: 1.0)
+
+        container.addArrangedSubview(chip)
+        container.addArrangedSubview(lbl)
         return container
     }
 
-    private func makeUnderlineView(for textField: UITextField) -> UIView {
-        let box = UIView()
-        box.translatesAutoresizingMaskIntoConstraints = false
-        textField.translatesAutoresizingMaskIntoConstraints = false
-        box.addSubview(textField)
+    private func makeChipIcon(_ name: String, bg: UIColor, tint: UIColor) -> UIView {
+        let v = UIView()
+        v.backgroundColor = bg
+        v.layer.cornerRadius = 8
+        v.translatesAutoresizingMaskIntoConstraints = false
+        v.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        v.heightAnchor.constraint(equalToConstant: 28).isActive = true
 
-        let line = UIView()
-        line.backgroundColor = .black
-        line.translatesAutoresizingMaskIntoConstraints = false
-        box.addSubview(line)
+        let iv = UIImageView(image: UIImage(systemName: name))
+        iv.tintColor = tint
+        iv.contentMode = .scaleAspectFit
+        iv.translatesAutoresizingMaskIntoConstraints = false
+        v.addSubview(iv)
 
         NSLayoutConstraint.activate([
-            textField.topAnchor.constraint(equalTo: box.topAnchor),
-            textField.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 4),
-            textField.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -4),
-
-            line.topAnchor.constraint(equalTo: textField.bottomAnchor, constant: 2),
-            line.leadingAnchor.constraint(equalTo: box.leadingAnchor),
-            line.trailingAnchor.constraint(equalTo: box.trailingAnchor),
-            line.bottomAnchor.constraint(equalTo: box.bottomAnchor),
-            line.heightAnchor.constraint(equalToConstant: 1.5),
-            box.widthAnchor.constraint(greaterThanOrEqualToConstant: 90)
+            iv.centerXAnchor.constraint(equalTo: v.centerXAnchor),
+            iv.centerYAnchor.constraint(equalTo: v.centerYAnchor),
+            iv.widthAnchor.constraint(equalToConstant: 16),
+            iv.heightAnchor.constraint(equalToConstant: 16)
         ])
-        return box
+        return v
     }
 
-    @objc private func swapResolution() {
-        let w = widthField.text
-        widthField.text = heightField.text
-        heightField.text = w
+    private func makeRowHeader(icon: String, iconBg: UIColor, iconTint: UIColor, title: String, subtitle: String) -> UIView {
+        let container = UIStackView()
+        container.axis = .horizontal
+        container.spacing = 12
+        container.alignment = .center
+
+        let chip = makeChipIcon(icon, bg: iconBg, tint: iconTint)
+        chip.layer.cornerRadius = 10
+        chip.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        chip.heightAnchor.constraint(equalToConstant: 36).isActive = true
+
+        let textStack = UIStackView()
+        textStack.axis = .vertical
+        textStack.spacing = 2
+
+        let tLbl = UILabel()
+        tLbl.text = title
+        tLbl.font = .systemFont(ofSize: 15, weight: .semibold)
+        tLbl.textColor = UIColor(red: 0.10, green: 0.14, blue: 0.10, alpha: 1.0)
+
+        let sLbl = UILabel()
+        sLbl.text = subtitle
+        sLbl.font = .systemFont(ofSize: 13, weight: .regular)
+        sLbl.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
+
+        textStack.addArrangedSubview(tLbl)
+        textStack.addArrangedSubview(sLbl)
+
+        container.addArrangedSubview(chip)
+        container.addArrangedSubview(textStack)
+        return container
     }
 
-    @objc private func showPresets() {
-        let alert = UIAlertController(title: "Độ phân giải mẫu", message: nil, preferredStyle: .actionSheet)
-        let presets = [
-            ("240 × 320 (Chuẩn)", 240, 320),
-            ("320 × 240 (Ngang)", 320, 240),
-            ("128 × 160", 128, 160),
-            ("176 × 220", 176, 220),
-            ("360 × 640", 360, 640),
-            ("480 × 800", 480, 800),
-        ]
-        for (label, w, h) in presets {
-            alert.addAction(UIAlertAction(title: label, style: .default) { [weak self] _ in
-                self?.widthField.text = "\(w)"
-                self?.heightField.text = "\(h)"
-            })
+    private func makeToggleRow(icon: String, iconBg: UIColor, iconTint: UIColor, title: String, subtitle: String, toggle: UISwitch, action: Selector) -> UIView {
+        let row = UIView()
+        let header = makeRowHeader(icon: icon, iconBg: iconBg, iconTint: iconTint, title: title, subtitle: subtitle)
+        header.translatesAutoresizingMaskIntoConstraints = false
+
+        toggle.onTintColor = UIColor(red: 0.18, green: 0.65, blue: 0.28, alpha: 1.0)
+        toggle.addTarget(self, action: action, for: .valueChanged)
+        toggle.translatesAutoresizingMaskIntoConstraints = false
+
+        row.addSubview(header)
+        row.addSubview(toggle)
+
+        NSLayoutConstraint.activate([
+            header.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            header.topAnchor.constraint(equalTo: row.topAnchor),
+            header.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+            header.trailingAnchor.constraint(lessThanOrEqualTo: toggle.leadingAnchor, constant: -8),
+
+            toggle.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            toggle.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            row.heightAnchor.constraint(equalToConstant: 44)
+        ])
+        return row
+    }
+
+    private func makeDivider() -> UIView {
+        let line = UIView()
+        line.backgroundColor = UIColor(red: 0.92, green: 0.94, blue: 0.92, alpha: 1.0)
+        line.translatesAutoresizingMaskIntoConstraints = false
+        line.heightAnchor.constraint(equalToConstant: 0.5).isActive = true
+        return line
+    }
+
+    // ============================================================
+    // MARK: - Actions & State Updates
+    // ============================================================
+
+    @objc private func screenSizeTapped(_ sender: UIButton) {
+        selectedScreenSizeIndex = sender.tag
+        for (idx, btn) in screenSizeButtons.enumerated() {
+            btn.isSelectedState = (idx == selectedScreenSizeIndex)
         }
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        saveValues()
+    }
+
+    @objc private func resTapped(_ sender: UIButton) {
+        selectedResIndex = sender.tag
+        for (idx, btn) in resButtons.enumerated() {
+            btn.isSelectedState = (idx == selectedResIndex)
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        saveValues()
+    }
+
+    @objc private func fpsTapped(_ sender: UIButton) {
+        selectedFpsIndex = sender.tag
+        for (idx, btn) in fpsButtons.enumerated() {
+            btn.isSelectedState = (idx == selectedFpsIndex)
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        saveValues()
+    }
+
+    @objc private func treoSwitchChanged(_ sender: UISwitch) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        DecadeBackgroundKeeper.shared.setTreoActive(sender.isOn)
+        saveValues()
+    }
+
+    @objc private func soundSwitchChanged(_ sender: UISwitch) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        UserDefaults.standard.set(sender.isOn, forKey: "decade_game_sound")
+        saveValues()
+    }
+
+    @objc private func keyboardSettingsTapped() {
+        let alert = UIAlertController(title: "Cài Đặt Bàn Phím", message: "Chọn kiểu cấu trúc bàn phím ảo hiển thị:", preferredStyle: .actionSheet)
+
+        alert.addAction(UIAlertAction(title: "⭐️ Bản Tuổi Thơ (Chuẩn Mới)", style: .default) { [weak self] _ in
+            self?.applyKeyboardLayout(0)
+        })
+        alert.addAction(UIAlertAction(title: "🎯 Chỉ Mũi Tên Điều Hướng", style: .default) { [weak self] _ in
+            self?.applyKeyboardLayout(1)
+        })
+        alert.addAction(UIAlertAction(title: "🔢 Bàn Phím Số (Numpad)", style: .default) { [weak self] _ in
+            self?.applyKeyboardLayout(2)
+        })
+        alert.addAction(UIAlertAction(title: "🔄 Kết Hợp Đầy Đủ", style: .default) { [weak self] _ in
+            self?.applyKeyboardLayout(3)
+        })
+        alert.addAction(UIAlertAction(title: "Ẩn / Hiện Bàn Phím", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            let isHidden = UserDefaults.standard.bool(forKey: "keypad_hidden_\(self.gid)")
+            UserDefaults.standard.set(!isHidden, forKey: "keypad_hidden_\(self.gid)")
+            self.keyboardStatusLabel.text = !isHidden ? "Đang Ẩn" : "Đang Hiện"
+            self.saveValues()
+        })
+        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+
         present(alert, animated: true)
     }
 
-    @objc private func alphaChanged() {
-        let v = Int(alphaSlider.value)
-        let pct = Int((Double(v) / 255.0) * 100)
-        alphaLabel.text = "\(v) (\(pct)%)"
+    private func applyKeyboardLayout(_ layout: Int) {
+        UserDefaults.standard.set(layout, forKey: "keypad_layout_\(gid)")
+        saveValues()
     }
 
-    private var gid: String {
-        let jarName = URL(fileURLWithPath: app.path).deletingPathExtension().lastPathComponent
-        return jarName.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "_", options: .regularExpression)
-    }
+    // ============================================================
+    // MARK: - Load & Save Values
+    // ============================================================
 
     private func loadSavedValues() {
         let defaults = UserDefaults.standard
-        let w = defaults.object(forKey: "resW_\(gid)") as? Int ?? 240
-        let h = defaults.object(forKey: "resH_\(gid)") as? Int ?? 320
-        widthField.text = "\(w)"
-        heightField.text = "\(h)"
 
-        aspectSwitch.isOn = defaults.object(forKey: "aspect_\(gid)") as? Bool ?? true
+        // Cỡ Màn Hình
+        let savedW = defaults.object(forKey: "resW_\(gid)") as? Int ?? 0
+        let savedH = defaults.object(forKey: "resH_\(gid)") as? Int ?? 0
+        var foundSizeIdx = 0
+        for (i, s) in screenSizes.enumerated() {
+            if s.w == savedW && s.h == savedH {
+                foundSizeIdx = i
+                break
+            }
+        }
+        selectedScreenSizeIndex = foundSizeIdx
+        for (i, btn) in screenSizeButtons.enumerated() {
+            btn.isSelectedState = (i == selectedScreenSizeIndex)
+        }
 
-        let fps = defaults.object(forKey: "fpsLimit_\(gid)") as? Int ?? 0
-        let fpsMap = [0: 0, 15: 1, 20: 2, 30: 3, 60: 4]
-        fpsLimitSegment.selectedSegmentIndex = fpsMap[fps] ?? 0
+        // Độ Phân Giải
+        let savedRes = defaults.object(forKey: "res_scale_\(gid)") as? Int ?? 360
+        var foundResIdx = 3
+        for (i, r) in resOptions.enumerated() {
+            if r.val == savedRes {
+                foundResIdx = i
+                break
+            }
+        }
+        selectedResIndex = foundResIdx
+        for (i, btn) in resButtons.enumerated() {
+            btn.isSelectedState = (i == selectedResIndex)
+        }
 
-        let layoutIdx = defaults.object(forKey: "keypad_layout_\(gid)") as? Int ?? 0
-        layoutSegment.selectedSegmentIndex = layoutIdx
+        // FPS
+        let savedFps = defaults.object(forKey: "fpsLimit_\(gid)") as? Int ?? 60
+        selectedFpsIndex = fpsOptions.firstIndex(of: savedFps) ?? 4
+        for (i, btn) in fpsButtons.enumerated() {
+            btn.isSelectedState = (i == selectedFpsIndex)
+        }
 
-        let alpha = defaults.object(forKey: "keypad_alpha_\(gid)") as? Float ?? 64.0
-        alphaSlider.value = alpha
-        alphaChanged()
+        // Treo khi ra ngoài: Mặc định luôn là TRUE
+        treoSwitch.isOn = DecadeBackgroundKeeper.shared.isTreoActive
 
-        fullscreenSwitch.isOn = defaults.object(forKey: "fullscreen_\(gid)") as? Bool ?? false
-        showFpsSwitch.isOn = defaults.object(forKey: "show_fps_\(gid)") as? Bool ?? false
+        // Âm thanh game: Mặc định TRUE
+        soundSwitch.isOn = defaults.object(forKey: "decade_game_sound") as? Bool ?? true
+
+        // Keyboard status
+        let isKbHidden = defaults.bool(forKey: "keypad_hidden_\(gid)")
+        keyboardStatusLabel.text = isKbHidden ? "Đang Ẩn" : "Đang Hiện"
     }
 
     private func saveValues() {
         let defaults = UserDefaults.standard
-        let w = Int(widthField.text ?? "") ?? 240
-        let h = Int(heightField.text ?? "") ?? 320
-        defaults.set(w, forKey: "resW_\(gid)")
-        defaults.set(h, forKey: "resH_\(gid)")
-        defaults.set(aspectSwitch.isOn, forKey: "aspect_\(gid)")
 
-        let fpsValues = [0, 15, 20, 30, 60]
-        let fpsIdx = fpsLimitSegment.selectedSegmentIndex
-        if fpsIdx >= 0 && fpsIdx < fpsValues.count {
-            defaults.set(fpsValues[fpsIdx], forKey: "fpsLimit_\(gid)")
-        }
+        let sSize = screenSizes[selectedScreenSizeIndex]
+        defaults.set(sSize.w, forKey: "resW_\(gid)")
+        defaults.set(sSize.h, forKey: "resH_\(gid)")
 
-        defaults.set(layoutSegment.selectedSegmentIndex, forKey: "keypad_layout_\(gid)")
-        defaults.set(alphaSlider.value, forKey: "keypad_alpha_\(gid)")
-        defaults.set(fullscreenSwitch.isOn, forKey: "fullscreen_\(gid)")
-        defaults.set(showFpsSwitch.isOn, forKey: "show_fps_\(gid)")
+        let sRes = resOptions[selectedResIndex].val
+        defaults.set(sRes, forKey: "res_scale_\(gid)")
+
+        let sFps = fpsOptions[selectedFpsIndex]
+        defaults.set(sFps, forKey: "fpsLimit_\(gid)")
+
+        defaults.set(treoSwitch.isOn, forKey: "decade_treo_tat_man")
+        defaults.set(soundSwitch.isOn, forKey: "decade_game_sound")
         defaults.synchronize()
 
         NotificationCenter.default.post(
@@ -530,27 +671,57 @@ class DecadeConfigViewController: UIViewController {
             object: nil,
             userInfo: [
                 "gid": gid,
-                "width": w,
-                "height": h,
-                "aspect": aspectSwitch.isOn,
-                "fps": (fpsIdx >= 0 && fpsIdx < fpsValues.count) ? fpsValues[fpsIdx] : 0,
-                "layout": layoutSegment.selectedSegmentIndex,
-                "alpha": alphaSlider.value,
-                "fullscreen": fullscreenSwitch.isOn,
-                "showFps": showFpsSwitch.isOn
+                "width": sSize.w,
+                "height": sSize.h,
+                "scale": sRes,
+                "fps": sFps,
+                "treo": treoSwitch.isOn,
+                "sound": soundSwitch.isOn
             ]
         )
     }
+}
 
-    private func resetDefaults() {
-        widthField.text = "240"
-        heightField.text = "320"
-        aspectSwitch.isOn = true
-        fpsLimitSegment.selectedSegmentIndex = 0
-        layoutSegment.selectedSegmentIndex = 0
-        alphaSlider.value = 64
-        alphaChanged()
-        fullscreenSwitch.isOn = false
-        showFpsSwitch.isOn = false
+// ============================================================
+// MARK: - PillButton Component
+// ============================================================
+
+final class PillButton: UIButton {
+
+    var isSelectedState: Bool = false {
+        didSet {
+            updateAppearance()
+        }
+    }
+
+    init(title: String) {
+        super.init(frame: .zero)
+        setTitle(title, for: .normal)
+        layer.cornerRadius = 10
+        layer.masksToBounds = true
+        contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        translatesAutoresizingMaskIntoConstraints = false
+        heightAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true
+        updateAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func updateAppearance() {
+        if isSelectedState {
+            backgroundColor = UIColor(red: 0.91, green: 0.96, blue: 0.91, alpha: 1.0) // Soft green tint
+            layer.borderWidth = 1.5
+            layer.borderColor = UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 1.0).cgColor
+            setTitleColor(UIColor(red: 0.15, green: 0.52, blue: 0.24, alpha: 1.0), for: .normal)
+            titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
+        } else {
+            backgroundColor = .white
+            layer.borderWidth = 1.0
+            layer.borderColor = UIColor(red: 0.88, green: 0.90, blue: 0.88, alpha: 1.0).cgColor
+            setTitleColor(UIColor(red: 0.20, green: 0.25, blue: 0.20, alpha: 1.0), for: .normal)
+            titleLabel?.font = .systemFont(ofSize: 14, weight: .regular)
+        }
     }
 }

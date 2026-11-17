@@ -2,10 +2,8 @@
 //  DecadeBackgroundKeeper.swift
 //  J2MEEmulator
 //
-//  Decade Background Keepalive Engine for iOS.
-//  Keeps J2ME threads and network sockets alive indefinitely in background / screen lock.
-//  Uses continuous sub-audible audio stream with AVAudioSession .playback + .mixWithOthers,
-//  chained background task assertions, and self-healing watchdog.
+//  Engine chạy ngầm 24/7 cho J2ME iOS: Treo tắt màn hình & Ra ngoài màn hình chính vĩnh viễn.
+//  Giữ kết nối mạng TCP socket và luồng game hoạt động liên tục không bị ngắt.
 //
 
 import UIKit
@@ -17,15 +15,25 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private var audioPlayer: AVAudioPlayer?
     private var bgTask: UIBackgroundTaskIdentifier = .invalid
     private var watchdogTimer: DispatchSourceTimer?
-    private(set) var isTreoActive: Bool = false
+
+    var isTreoActive: Bool {
+        get {
+            // Mặc định luôn là TRUE để treo game liên tục theo yêu cầu người dùng
+            if UserDefaults.standard.object(forKey: "decade_treo_tat_man") == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: "decade_treo_tat_man")
+        }
+        set {
+            setTreoActive(newValue)
+        }
+    }
 
     private override init() {
         super.init()
         setupNotifications()
-        // Restore persistent treo state if previously enabled
-        let savedTreo = UserDefaults.standard.bool(forKey: "decade_treo_tat_man")
-        if savedTreo {
-            setTreoActive(true)
+        if isTreoActive {
+            startKeepalive()
         }
     }
 
@@ -57,7 +65,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     }
 
     func setTreoActive(_ active: Bool) {
-        isTreoActive = active
         UserDefaults.standard.set(active, forKey: "decade_treo_tat_man")
 
         if active {
@@ -75,7 +82,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     func startKeepalive() {
         startAudioStream()
-        beginBackgroundTask()
+        startWatchdog()
     }
 
     func stopKeepalive() {
@@ -87,19 +94,23 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     @objc func onSceneDidEnterBackground() {
         if isTreoActive {
             startKeepalive()
+            beginGraceBackgroundTask()
         }
     }
 
     @objc private func handleAppDidEnterBackground() {
         if isTreoActive {
             startKeepalive()
+            beginGraceBackgroundTask()
         }
     }
 
     @objc private func handleAppWillEnterForeground() {
         endBackgroundTask()
-        if isTreoActive && (audioPlayer == nil || audioPlayer?.isPlaying == false) {
-            startAudioStream()
+        if isTreoActive {
+            if audioPlayer == nil || audioPlayer?.isPlaying == false {
+                startAudioStream()
+            }
         }
     }
 
@@ -110,8 +121,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
 
         if type == .ended {
-            // Re-activate and resume audio stream
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            // Re-activate and resume audio stream immediately
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self = self, self.isTreoActive else { return }
                 self.startAudioStream()
             }
@@ -120,8 +131,11 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     @objc private func handleRouteChange(_ notification: Notification) {
         guard isTreoActive else { return }
-        if audioPlayer == nil || audioPlayer?.isPlaying == false {
-            startAudioStream()
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isTreoActive else { return }
+            if self.audioPlayer == nil || self.audioPlayer?.isPlaying == false {
+                self.startAudioStream()
+            }
         }
     }
 
@@ -131,16 +145,34 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true)
 
-            if audioPlayer == nil {
-                let pcmData = createSubaudibleWavData()
-                audioPlayer = try AVAudioPlayer(data: pcmData)
+            if audioPlayer == nil || audioPlayer?.isPlaying == false {
+                var player: AVAudioPlayer?
+                if let bundleURL = Bundle.main.url(forResource: "silent", withExtension: "wav") {
+                    player = try? AVAudioPlayer(contentsOf: bundleURL)
+                }
+
+                if player == nil {
+                    let tempWavPath = NSTemporaryDirectory() + "/j2me_keepalive_silent.wav"
+                    let fileURL = URL(fileURLWithPath: tempWavPath)
+                    if !FileManager.default.fileExists(atPath: tempWavPath) {
+                        let data = createSubaudibleWavData()
+                        try? data.write(to: fileURL)
+                    }
+                    player = try? AVAudioPlayer(contentsOf: fileURL)
+                }
+
+                if player == nil {
+                    let data = createSubaudibleWavData()
+                    player = try? AVAudioPlayer(data: data)
+                }
+
+                audioPlayer = player
                 audioPlayer?.delegate = self
-                audioPlayer?.numberOfLoops = -1 // Infinite continuous loop
-                audioPlayer?.volume = 0.02      // Hardware level audio rendering active
+                audioPlayer?.numberOfLoops = -1 // Vòng lặp vô tận
+                audioPlayer?.volume = 0.02      // Giữ hardware audio pipeline luôn hoạt động trên iOS
                 audioPlayer?.prepareToPlay()
-            }
-            if audioPlayer?.isPlaying == false {
                 audioPlayer?.play()
+                print("[DecadeBackgroundKeeper] Audio keepalive loop đang phát liên tục.")
             }
         } catch {
             print("[DecadeBackgroundKeeper] Audio setup error: \(error)")
@@ -154,54 +186,33 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    private var lastRenewTime: CFTimeInterval = 0
-
-    private func beginBackgroundTask() {
-        let oldTask = bgTask
-        bgTask = .invalid
-        if oldTask != .invalid {
-            UIApplication.shared.endBackgroundTask(oldTask)
-        }
-
-        bgTask = UIApplication.shared.beginBackgroundTask(withName: "DecadeKeepaliveTask") { [weak self] in
-            guard let self = self else { return }
-            let expiredTask = self.bgTask
-            self.bgTask = .invalid
-            if expiredTask != .invalid {
-                UIApplication.shared.endBackgroundTask(expiredTask)
-            }
-            if self.isTreoActive {
-                self.beginBackgroundTask()
-            }
+    /// Transient background task for seamless transition into background.
+    /// Safely terminates without recursive chaining!
+    private func beginGraceBackgroundTask() {
+        endBackgroundTask()
+        bgTask = UIApplication.shared.beginBackgroundTask(withName: "J2MEKeepaliveGrace") { [weak self] in
+            self?.endBackgroundTask()
         }
     }
 
     private func endBackgroundTask() {
-        let task = bgTask
-        bgTask = .invalid
-        if task != .invalid {
-            UIApplication.shared.endBackgroundTask(task)
+        if bgTask != .invalid {
+            let t = bgTask
+            bgTask = .invalid
+            UIApplication.shared.endBackgroundTask(t)
         }
     }
 
-    /// Watchdog timer running on background queue to ensure audio is never killed
-    /// and background assertions are proactively renewed before iOS timeout.
+    /// Watchdog timer running on utility queue to ensure audio is never stopped by iOS.
     private func startWatchdog() {
         stopWatchdog()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
-        timer.schedule(deadline: .now() + 3.0, repeating: 3.0)
+        timer.schedule(deadline: .now() + 4.0, repeating: 4.0)
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isTreoActive else { return }
             DispatchQueue.main.async {
                 if self.audioPlayer == nil || self.audioPlayer?.isPlaying == false {
                     self.startAudioStream()
-                }
-
-                // Proactively refresh background task every 20s while in background
-                let now = CACurrentMediaTime()
-                if UIApplication.shared.applicationState == .background && (now - self.lastRenewTime >= 20.0) {
-                    self.lastRenewTime = now
-                    self.beginBackgroundTask()
                 }
             }
         }
@@ -215,8 +226,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     }
 
     /// Synthesizes a valid 2-second 44.1kHz mono 16-bit PCM WAV with sub-audible LSB dither (-96dB).
-    /// This guarantees iOS CoreAudio (mediaserverd) detects an ACTIVE audio stream and NEVER
-    /// considers it digital silence or suspends the audio hardware.
     private func createSubaudibleWavData() -> Data {
         let sampleRate: Int32 = 44100
         let channels: Int16 = 1
@@ -252,7 +261,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         data.append(contentsOf: [0x64, 0x61, 0x74, 0x61])
         data.append(withUnsafeBytes(of: dataSize.littleEndian) { Data($0) })
 
-        // 2 seconds of sub-audible dither (alternating +/-1 on 16-bit PCM = -96dB)
         for i in 0..<numSamples {
             let sample: Int16 = (i % 2 == 0) ? 1 : -1
             data.append(withUnsafeBytes(of: sample.littleEndian) { Data($0) })

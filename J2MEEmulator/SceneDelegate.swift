@@ -57,8 +57,5 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneDidEnterBackground(_ scene: UIScene) {
         DecadeBackgroundKeeper.shared.onSceneDidEnterBackground()
-        if DecadeBackgroundKeeper.shared.isTreoActive {
-            DecadePiPManager.shared.startPiP()
-        }
     }
 }

@@ -46,20 +46,6 @@ public class Display {
     public void setCurrent(Displayable d) {
         if (d == null) return;
         Displayable old = current;
-
-        // If the user is actively viewing/editing a Form or TextBox ("Cài đặt cơ bản"),
-        // do not let an unsolicited background timer thread call setCurrent(Canvas) to interrupt the user UI!
-        // Allow switching to Canvas if triggered by user interaction (e.g. tapping "Lưu" / "Quay lại"
-        // or any midlet handler responding within 15 seconds of user command).
-        if ((current instanceof Form || current instanceof TextBox) && (d instanceof Canvas)) {
-            boolean userAllowed = isHandlingCommandAction || (System.currentTimeMillis() - lastUserCommandTime < 15000);
-            if (!userAllowed) {
-                System.out.println("[Display] Blocked background setCurrent(Canvas) while user UI is active: " + current);
-                return;
-            }
-            lastUserCommandTime = 0;
-        }
-
         current = d;
 
         d.width = screenWidth;

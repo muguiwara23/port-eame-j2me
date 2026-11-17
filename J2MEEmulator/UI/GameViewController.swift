@@ -83,8 +83,11 @@ class GameViewController: UIViewController {
     private var decadeKeypadView: DecadeKeypadView?
     private var keypadHeightConstraint: NSLayoutConstraint?
     private let topToolbar = UIView()
+    private let backArrowBtn = UIButton(type: .system)
     private let titleLabel = UILabel()
+    private let subtitleLabel = UILabel()
     private let tabStripContainer = UIView()
+    private var tabStripHeightConstraint: NSLayoutConstraint?
     private let tabScrollView = UIScrollView()
     private let tabStrip = UIStackView()
     struct TabSession {
@@ -118,7 +121,7 @@ class GameViewController: UIViewController {
     private var isKeepAwake = false
     private var isAutoCleanRam = true
     private var isKeypadHidden = false
-    private var keypadCurrentHeight: CGFloat = 245
+    private var keypadCurrentHeight: CGFloat = 280
     private var autoShutdownTimer: Timer?
 
     init(jarPath: String, appName: String, appIcon: UIImage,
@@ -294,46 +297,70 @@ class GameViewController: UIViewController {
     // ============================================================
 
     private func setupDecadeLayout() {
-        // 1. Top Toolbar (Dark background #1E1E1E / #212121)
-        topToolbar.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.12, alpha: 1.0)
+        // 1. Top Toolbar (White background #FFFFFF matching Screenshot 1 & 2)
+        topToolbar.backgroundColor = .white
         topToolbar.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(topToolbar)
 
-        // Title on left ("x27" / "Tài khoản" / "AngelChip Menu")
-        titleLabel.text = appName
-        titleLabel.font = .systemFont(ofSize: 18, weight: .bold)
-        titleLabel.textColor = .white
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        topToolbar.addSubview(titleLabel)
+        // Back button on left (←)
+        backArrowBtn.setImage(UIImage(systemName: "arrow.left"), for: .normal)
+        backArrowBtn.tintColor = UIColor(red: 0.12, green: 0.14, blue: 0.12, alpha: 1.0)
+        backArrowBtn.addTarget(self, action: #selector(backTapped), for: .touchUpInside)
+        backArrowBtn.translatesAutoresizingMaskIntoConstraints = false
+        topToolbar.addSubview(backArrowBtn)
 
-        // Toolbar action buttons on right: [++] [+] [⌨] [📷] [⋮]
+        // Title on left ("Thợ Đục Error" / appName) + Subtitle
+        titleLabel.text = appName
+        titleLabel.font = .systemFont(ofSize: 16, weight: .bold)
+        titleLabel.textColor = UIColor(red: 0.10, green: 0.12, blue: 0.10, alpha: 1.0)
+
+        subtitleLabel.text = appName
+        subtitleLabel.font = .systemFont(ofSize: 11, weight: .regular)
+        subtitleLabel.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
+
+        let titleStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
+        titleStack.axis = .vertical
+        titleStack.spacing = 1
+        titleStack.translatesAutoresizingMaskIntoConstraints = false
+        topToolbar.addSubview(titleStack)
+
+        // Toolbar action buttons on right: [+] [⌨] [⋮]
         let actionStack = UIStackView()
         actionStack.axis = .horizontal
-        actionStack.spacing = 10
+        actionStack.spacing = 16
         actionStack.alignment = .center
         actionStack.translatesAutoresizingMaskIntoConstraints = false
         topToolbar.addSubview(actionStack)
 
-        styleToolbarButton(multiTabBtn, title: "++", action: #selector(multiTabTapped))
-        styleToolbarButton(addTabBtn, title: "+", action: #selector(addTabTapped))
-        styleToolbarButton(keyboardBtn, title: "⌨", action: #selector(keyboardButtonTapped))
-        styleToolbarButton(menuBtn, title: "⋮", action: #selector(showMenu))
+        // [+] Button in bold green (#2E7D32)
+        addTabBtn.setImage(UIImage(systemName: "plus"), for: .normal)
+        addTabBtn.tintColor = UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 1.0)
+        addTabBtn.addTarget(self, action: #selector(addTabTapped), for: .touchUpInside)
 
-        if #available(iOS 14.0, *) {
-            keyboardBtn.showsMenuAsPrimaryAction = true
-            keyboardBtn.menu = buildVirtualKeyboardMenu()
-        }
+        // [⌨] Keyboard Button in dark grey (#374151)
+        keyboardBtn.setImage(UIImage(systemName: "keyboard"), for: .normal)
+        keyboardBtn.tintColor = UIColor(red: 0.20, green: 0.25, blue: 0.20, alpha: 1.0)
+        keyboardBtn.addTarget(self, action: #selector(keyboardButtonTapped), for: .touchUpInside)
 
-        let kbLongPress = UILongPressGestureRecognizer(target: self, action: #selector(keyboardLongPressed(_:)))
-        keyboardBtn.addGestureRecognizer(kbLongPress)
+        // [⋮] Menu Button in dark grey (#374151)
+        menuBtn.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+        menuBtn.tintColor = UIColor(red: 0.20, green: 0.25, blue: 0.20, alpha: 1.0)
+        menuBtn.transform = CGAffineTransform(rotationAngle: .pi / 2) // Rotate to vertical 3 dots!
+        menuBtn.addTarget(self, action: #selector(showMenu), for: .touchUpInside)
 
-        actionStack.addArrangedSubview(multiTabBtn)
         actionStack.addArrangedSubview(addTabBtn)
         actionStack.addArrangedSubview(keyboardBtn)
         actionStack.addArrangedSubview(menuBtn)
 
-        // 2. Tab Strip Bar (Dark Navy #1C2534)
-        tabStripContainer.backgroundColor = UIColor(red: 0.11, green: 0.15, blue: 0.20, alpha: 1.0)
+        // Bottom border for topToolbar
+        let toolbarBorder = UIView()
+        toolbarBorder.backgroundColor = UIColor(white: 0.90, alpha: 1.0)
+        toolbarBorder.translatesAutoresizingMaskIntoConstraints = false
+        topToolbar.addSubview(toolbarBorder)
+
+        // 2. Tab Strip Bar (Hidden by default unless multi-tab)
+        tabStripContainer.backgroundColor = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 1.0)
+        tabStripContainer.isHidden = true
         tabStripContainer.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(tabStripContainer)
 
@@ -347,7 +374,27 @@ class GameViewController: UIViewController {
         tabStrip.translatesAutoresizingMaskIntoConstraints = false
         tabScrollView.addSubview(tabStrip)
 
+        let tabHeightConstraint = tabStripContainer.heightAnchor.constraint(equalToConstant: 0)
+        self.tabStripHeightConstraint = tabHeightConstraint
+
         NSLayoutConstraint.activate([
+            backArrowBtn.leadingAnchor.constraint(equalTo: topToolbar.leadingAnchor, constant: 12),
+            backArrowBtn.centerYAnchor.constraint(equalTo: topToolbar.centerYAnchor),
+            backArrowBtn.widthAnchor.constraint(equalToConstant: 32),
+            backArrowBtn.heightAnchor.constraint(equalToConstant: 32),
+
+            titleStack.leadingAnchor.constraint(equalTo: backArrowBtn.trailingAnchor, constant: 10),
+            titleStack.centerYAnchor.constraint(equalTo: topToolbar.centerYAnchor),
+            titleStack.trailingAnchor.constraint(lessThanOrEqualTo: actionStack.leadingAnchor, constant: -8),
+
+            actionStack.trailingAnchor.constraint(equalTo: topToolbar.trailingAnchor, constant: -14),
+            actionStack.centerYAnchor.constraint(equalTo: topToolbar.centerYAnchor),
+
+            toolbarBorder.leadingAnchor.constraint(equalTo: topToolbar.leadingAnchor),
+            toolbarBorder.trailingAnchor.constraint(equalTo: topToolbar.trailingAnchor),
+            toolbarBorder.bottomAnchor.constraint(equalTo: topToolbar.bottomAnchor),
+            toolbarBorder.heightAnchor.constraint(equalToConstant: 0.5),
+
             tabScrollView.topAnchor.constraint(equalTo: tabStripContainer.topAnchor),
             tabScrollView.leadingAnchor.constraint(equalTo: tabStripContainer.leadingAnchor, constant: 8),
             tabScrollView.trailingAnchor.constraint(equalTo: tabStripContainer.trailingAnchor, constant: -8),
@@ -379,16 +426,10 @@ class GameViewController: UIViewController {
         let savedLayout = (UserDefaults.standard.object(forKey: "keypad_layout_\(gid)") as? Int)
             ?? (UserDefaults.standard.object(forKey: "keypad_layout_\(legGid)") as? Int)
             ?? 0
-        if savedLayout == 1 {
-            keypad.currentLayout = .combined
-        } else if savedLayout == 2 {
-            keypad.currentLayout = .numpad
-        } else {
-            keypad.currentLayout = .arrows
-        }
+        keypad.currentLayout = DecadeKeypadLayout(rawValue: savedLayout) ?? .tuoitho
         let savedAlpha = (UserDefaults.standard.object(forKey: "keypad_alpha_\(gid)") as? Float)
             ?? (UserDefaults.standard.object(forKey: "keypad_alpha_\(legGid)") as? Float)
-            ?? 64.0
+            ?? 255.0
         keypad.keypadAlphaValue = CGFloat(savedAlpha / 255.0)
 
         keypad.translatesAutoresizingMaskIntoConstraints = false
@@ -399,7 +440,7 @@ class GameViewController: UIViewController {
         floatingShowKeypadBtn.setTitle("⌨ Bật phím", for: .normal)
         floatingShowKeypadBtn.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
         floatingShowKeypadBtn.setTitleColor(.white, for: .normal)
-        floatingShowKeypadBtn.backgroundColor = UIColor(red: 0.12, green: 0.41, blue: 0.82, alpha: 0.85)
+        floatingShowKeypadBtn.backgroundColor = UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 0.90)
         floatingShowKeypadBtn.layer.cornerRadius = 16
         floatingShowKeypadBtn.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
         floatingShowKeypadBtn.addTarget(self, action: #selector(toggleKeypadVisibility), for: .touchUpInside)
@@ -429,18 +470,11 @@ class GameViewController: UIViewController {
             topToolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             topToolbar.heightAnchor.constraint(equalToConstant: 44),
 
-            titleLabel.leadingAnchor.constraint(equalTo: topToolbar.leadingAnchor, constant: 16),
-            titleLabel.centerYAnchor.constraint(equalTo: topToolbar.centerYAnchor),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: actionStack.leadingAnchor, constant: -8),
-
-            actionStack.trailingAnchor.constraint(equalTo: topToolbar.trailingAnchor, constant: -12),
-            actionStack.centerYAnchor.constraint(equalTo: topToolbar.centerYAnchor),
-
             // Tab Strip right under Top Toolbar
             tabStripContainer.topAnchor.constraint(equalTo: topToolbar.bottomAnchor),
             tabStripContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tabStripContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tabStripContainer.heightAnchor.constraint(equalToConstant: 34),
+            tabHeightConstraint,
 
             // Keypad at bottom
             keypad.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -837,110 +871,75 @@ class GameViewController: UIViewController {
     }
 
     // ============================================================
-    // MARK: - Authentic Decade 3-Dot Overflow Menu
+    // MARK: - Popup Menu 3 Chấm Chuẩn 1:1 Bản Tuổi Thơ (Ảnh 1)
     // ============================================================
 
     @objc private func showMenu() {
         softKeyHaptic.impactOccurred(intensity: 0.6)
-        let currentNet = DecadeNetworkManager.shared.currentNetworkDescription()
-        let alert = UIAlertController(title: "Vạn Trần J2ME Menu", message: "\(appName) — Tab \(activeTabIndex + 1) • Mạng: \(currentNet)", preferredStyle: .actionSheet)
+        let popup = TuoiThoPopupMenuView()
+        popup.isKeypadHidden = self.isKeypadHidden
 
-        // 0. Thiết lập & Cài đặt (Áp dụng ngay không cần thoát game)
-        alert.addAction(UIAlertAction(title: "⚙️ Thiết lập & Cài đặt (Áp dụng ngay)", style: .default) { [weak self] _ in
+        popup.onOpenGameSettings = { [weak self] in
             self?.openInGameSettings()
-        })
-
-        // 1. Thoát midlet (chuẩn APK)
-        alert.addAction(UIAlertAction(title: "✕ Thoát game về danh sách", style: .destructive) { [weak self] _ in
+        }
+        popup.onOpenKeyboardSettings = { [weak self] in
+            self?.promptChangeKeyboardLayout()
+        }
+        popup.onArrangeKeyboard = { [weak self] in
+            self?.decadeKeypadView?.toggleEditMode()
+            self?.showToast(message: "Kéo thả để sắp xếp các phím ảo")
+        }
+        popup.onToggleKeyboardVisibility = { [weak self] in
+            self?.toggleKeypadVisibility()
+        }
+        popup.onRestartGame = { [weak self] in
+            self?.restartGameSession()
+        }
+        popup.onExitGame = { [weak self] in
             self?.backTapped()
-        })
-
-        // 2. Treo tắt màn (Chạy nền liên tục không ngắt kết nối)
-        let keepAwakeTitle = (isKeepAwake ? "✓ " : "   ") + "Treo tắt màn (Chạy nền liên tục)"
-        alert.addAction(UIAlertAction(title: keepAwakeTitle, style: .default) { [weak self] _ in
-            self?.toggleTreoTatMan()
-        })
-
-        // 3. Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)
-        alert.addAction(UIAlertAction(title: "📺 Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)", style: .default) { _ in
-            DecadePiPManager.shared.togglePiP()
-        })
-
-        // 4. Cửa sổ màn hình nhỏ kéo to nhỏ tuỳ ý
-        alert.addAction(UIAlertAction(title: "🪟 Cửa sổ màn hình nhỏ (Kéo to nhỏ tuỳ ý)", style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            DecadeMiniWindow.shared.setTabInfo(tabNumber: self.activeTabIndex + 1)
-            DecadeMiniWindow.shared.toggle(in: self.view.window)
-        })
-
-        // 5. Xoay màn hình (Xoay ngang / Xoay dọc)
-        let isLandscape = isCurrentOrientationLandscape()
-        let rotateTitle = isLandscape ? "🔄 Xoay dọc" : "🔄 Xoay ngang"
-        alert.addAction(UIAlertAction(title: rotateTitle, style: .default) { [weak self] _ in
-            self?.toggleScreenOrientation()
-        })
-
-        // 4. Hẹn giờ tự tắt
-        alert.addAction(UIAlertAction(title: "⏰ Hẹn giờ tự tắt", style: .default) { [weak self] _ in
-            self?.promptShutdownTimer()
-        })
-
-        // 5. Tiết kiệm pin
-        alert.addAction(UIAlertAction(title: "⚡ Tiết kiệm pin (30 FPS)", style: .default) { [weak self] _ in
-            self?.showToast(message: "Đã kích hoạt chế độ tiết kiệm pin (30 FPS)")
-        })
-
-        // 6. Lưu log
-        alert.addAction(UIAlertAction(title: "📝 Lưu log", style: .default) { [weak self] _ in
-            self?.showToast(message: "Đã xuất log hệ thống thành công")
-        })
-
-        // 7. Tự động dọn bộ nhớ
-        let cleanTitle = (isAutoCleanRam ? "✓ " : "   ") + "Tự động dọn bộ nhớ"
-        alert.addAction(UIAlertAction(title: cleanTitle, style: .default) { [weak self] _ in
-            guard let self = self else { return }
-            self.isAutoCleanRam.toggle()
-            self.showToast(message: self.isAutoCleanRam ? "Đã bật tự động dọn RAM" : "Đã tắt tự động dọn RAM")
-        })
-
-        // 8. Quản lý Proxy (chuẩn APK action_proxy_add)
-        alert.addAction(UIAlertAction(title: "🌐 Quản lý Proxy", style: .default) { [weak self] _ in
-            self?.openProxyManager(segment: 0)
-        })
-
-        // 9. Gán proxy cho từng tab game (chuẩn APK action_proxy_assign)
-        alert.addAction(UIAlertAction(title: "📑 Gán proxy cho từng tab game", style: .default) { [weak self] _ in
-            self?.openProxyManager(segment: 1)
-        })
-
-        // 10. Giới hạn FPS
-        alert.addAction(UIAlertAction(title: "🎯 Giới hạn FPS (15 / 30 / 60)", style: .default) { [weak self] _ in
-            self?.promptFPSLimit()
-        })
-
-        // 11. Bàn phím ảo
-        alert.addAction(UIAlertAction(title: "⌨ Bàn phím ảo", style: .default) { [weak self] _ in
-            self?.showVirtualKeyboardMenu()
-        })
-
-        // 12. Thay IP Phiên Bản
-        alert.addAction(UIAlertAction(title: "🔄 Thay IP Phiên Bản", style: .default) { [weak self] _ in
-            self?.openChangeIpDialog()
-        })
-
-        // 13. Nhập văn bản (IME)
-        alert.addAction(UIAlertAction(title: "📝 Nhập văn bản (IME)", style: .default) { [weak self] _ in
-            self?.promptTextInput()
-        })
-
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
-
-        if let popover = alert.popoverPresentationController {
-            popover.sourceView = menuBtn
-            popover.sourceRect = menuBtn.bounds
         }
 
+        popup.show(in: view)
+    }
+
+    private func promptChangeKeyboardLayout() {
+        let alert = UIAlertController(title: "Cài Đặt Bàn Phím", message: "Chọn kiểu bàn phím ảo hiển thị:", preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "⭐️ Bản Tuổi Thơ (Chuẩn Mới)", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.decadeKeypadView?.currentLayout = .tuoitho
+            UserDefaults.standard.set(0, forKey: "keypad_layout_\(self.currentGameId)")
+            self.showToast(message: "Đã chọn Bàn phím Tuổi Thơ")
+        })
+        alert.addAction(UIAlertAction(title: "🎯 Chỉ Mũi Tên Điều Hướng", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.decadeKeypadView?.currentLayout = .arrows
+            UserDefaults.standard.set(1, forKey: "keypad_layout_\(self.currentGameId)")
+            self.showToast(message: "Đã chọn Bàn phím Mũi Tên")
+        })
+        alert.addAction(UIAlertAction(title: "🔢 Bàn Phím Số (Numpad)", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.decadeKeypadView?.currentLayout = .numpad
+            UserDefaults.standard.set(2, forKey: "keypad_layout_\(self.currentGameId)")
+            self.showToast(message: "Đã chọn Bàn phím Số")
+        })
+        alert.addAction(UIAlertAction(title: "🔄 Kết Hợp Đầy Đủ", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.decadeKeypadView?.currentLayout = .combined
+            UserDefaults.standard.set(3, forKey: "keypad_layout_\(self.currentGameId)")
+            self.showToast(message: "Đã chọn Bàn phím Kết Hợp")
+        })
+        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
         present(alert, animated: true)
+    }
+
+    private func restartGameSession() {
+        showToast(message: "Đang khởi động lại game...")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            jvm_bridge_stop_slot(Int32(self.activeTabIndex))
+            Thread.sleep(forTimeInterval: 0.3)
+            self.startGame()
+        }
     }
 
     private func openInGameSettings() {
@@ -987,7 +986,11 @@ class GameViewController: UIViewController {
 
         let savedLayout = (UserDefaults.standard.object(forKey: "keypad_layout_\(currentGameId)") as? Int) ??
                           (UserDefaults.standard.object(forKey: "keypad_layout_\(legacyGameId)") as? Int) ?? 0
-        decadeKeypadView?.currentLayout = DecadeKeypadLayout(rawValue: savedLayout) ?? .arrows
+        decadeKeypadView?.currentLayout = DecadeKeypadLayout(rawValue: savedLayout) ?? .tuoitho
+
+        if let treo = notif.userInfo?["treo"] as? Bool {
+            DecadeBackgroundKeeper.shared.setTreoActive(treo)
+        }
 
         let savedAlpha = (UserDefaults.standard.object(forKey: "keypad_alpha_\(currentGameId)") as? Float) ??
                          (UserDefaults.standard.object(forKey: "keypad_alpha_\(legacyGameId)") as? Float) ?? 64.0

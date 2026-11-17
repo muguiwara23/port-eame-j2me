@@ -67,6 +67,7 @@ jobs:
           fi
           echo "Found App at: $APP_PATH"
           cp -R "$APP_PATH" Payload/
+          cp -v J2MEEmulator/Resources/silent.wav Payload/*.app/ || true
           echo "=== Content of App Bundle ==="
           ls -la Payload/*.app/
           zip -r J2ME-Decade.ipa Payload/
