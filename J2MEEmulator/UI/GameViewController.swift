@@ -1722,7 +1722,6 @@ class GameViewController: UIViewController {
     }
 
     func showTextBoxView() {
-        j2me_input_reset()
         let formTitle = String(cString: j2me_ui_get_form_title())
         titleLabel.text = formTitle.isEmpty ? "Tài khoản" : formTitle
         textBoxView.buildFromNativeData()
@@ -1736,7 +1735,6 @@ class GameViewController: UIViewController {
     }
 
     func showFormView() {
-        j2me_input_reset()
         let formTitle = String(cString: j2me_ui_get_form_title())
         titleLabel.text = formTitle.isEmpty ? appName : formTitle
         formView.buildFromNativeData()
@@ -1750,7 +1748,6 @@ class GameViewController: UIViewController {
     }
 
     func showListView() {
-        j2me_input_reset()
         let formTitle = String(cString: j2me_ui_get_form_title())
         titleLabel.text = formTitle.isEmpty ? "Menu" : formTitle
         listView.buildFromNativeData()
@@ -1764,7 +1761,6 @@ class GameViewController: UIViewController {
     }
 
     func showAlert() {
-        j2me_input_reset()
         let title = String(cString: j2me_ui_get_form_title())
         let text = String(cString: j2me_ui_get_alert_text())
 

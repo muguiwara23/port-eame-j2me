@@ -73,16 +73,20 @@ public class Form extends Screen {
                 if (val != null && val.length() > 0) {
                     try {
                         String[] parts = val.split("\n");
-                        if (parts.length >= 1) {
-                            int selIdx = Integer.parseInt(parts[0].trim());
-                            if (selIdx >= 0 && selIdx < cg.size()) {
-                                cg.setSelectedIndex(selIdx, true);
+                        if (cg.choiceType == Choice.EXCLUSIVE || cg.choiceType == Choice.POPUP) {
+                            if (parts.length >= 1 && parts[0].trim().length() > 0) {
+                                int selIdx = Integer.parseInt(parts[0].trim());
+                                if (selIdx >= 0 && selIdx < cg.size()) {
+                                    cg.setSelectedIndex(selIdx, true);
+                                }
                             }
-                        }
-                        if (parts.length >= 3) {
-                            String[] flags = parts[2].split(",");
-                            for (int f = 0; f < flags.length && f < cg.size(); f++) {
-                                cg.setSelectedIndex(f, "1".equals(flags[f].trim()));
+                        } else {
+                            // Choice.MULTIPLE
+                            if (parts.length >= 3) {
+                                String[] flags = parts[2].split(",");
+                                for (int f = 0; f < flags.length && f < cg.size(); f++) {
+                                    cg.setSelectedIndex(f, "1".equals(flags[f].trim()));
+                                }
                             }
                         }
                         notifyItemStateChanged(item);

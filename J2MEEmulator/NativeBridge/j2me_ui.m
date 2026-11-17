@@ -24,7 +24,7 @@
 typedef struct {
     int type;           // 0=string, 1=textfield, 2=choice, 3=image, 4=spacer, 5=gauge
     char label[256];
-    char text[1024];
+    char text[8192];
     int intParam1;      // appearance/maxSize/choiceType
     int intParam2;      // constraints
 } FormItem;
@@ -54,7 +54,7 @@ static char g_alert_text[1024] = "";
 static int g_alert_timeout = -2; // FOREVER
 
 // TextBox buffer
-static char g_textbox_text[2048] = "";
+static char g_textbox_text[8192] = "";
 
 void j2me_ui_set_textbox_text(const char *text) {
     if (text) {
@@ -63,6 +63,7 @@ void j2me_ui_set_textbox_text(const char *text) {
     } else {
         g_textbox_text[0] = '\0';
     }
+    atomic_thread_fence(memory_order_seq_cst);
 }
 
 const char *j2me_ui_get_textbox_text(void) {
@@ -103,6 +104,7 @@ void j2me_ui_set_form_item_text(int index, const char *text) {
     if (index >= 0 && index < g_form_item_count && text) {
         strncpy(g_form_items[index].text, text, sizeof(g_form_items[index].text) - 1);
         g_form_items[index].text[sizeof(g_form_items[index].text) - 1] = '\0';
+        atomic_thread_fence(memory_order_seq_cst);
     }
 }
 
@@ -389,6 +391,7 @@ static s32 n_platformRequest(Runtime *runtime, JClass *clazz) {
 }
 
 static s32 n_getTextBoxText(Runtime *runtime, JClass *clazz) {
+    atomic_thread_fence(memory_order_seq_cst);
     JniEnv *env = runtime->jnienv;
     Instance *jstr = env->jstring_create_cstr(g_textbox_text, runtime);
     env->push_ref(runtime->stack, jstr);
@@ -407,10 +410,12 @@ static s32 n_setTextBoxText(Runtime *runtime, JClass *clazz) {
     } else {
         g_textbox_text[0] = '\0';
     }
+    atomic_thread_fence(memory_order_seq_cst);
     return RUNTIME_STATUS_NORMAL;
 }
 
 static s32 n_getFormItemText(Runtime *runtime, JClass *clazz) {
+    atomic_thread_fence(memory_order_seq_cst);
     JniEnv *env = runtime->jnienv;
     s32 index = env->localvar_getInt(runtime->localvar, 0);
     if (index >= 0 && index < g_form_item_count) {

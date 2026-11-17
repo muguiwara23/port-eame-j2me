@@ -217,6 +217,7 @@ class J2METextBoxView: UIView, UITextViewDelegate {
     @objc private func commandTapped(_ sender: UIButton) {
         dismissKeyboard()
         syncTextToNative()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         let cmdId = Int32(sender.tag)
         j2me_input_post_key(Int32(J2ME_UI_COMMAND_ACTION), cmdId)
     }
@@ -302,12 +303,16 @@ class FormView: UIView, UITextFieldDelegate {
     }
 
     private var commands: [(label: String, id: Int32, type: Int32)] = []
+    private var textFields: [Int: UITextField] = [:]
+    private var choiceRows: [Int: (stack: UIStackView, isMultiple: Bool, label: UILabel)] = [:]
 
     func buildFromNativeData() {
         stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
         commandBar.arrangedSubviews.forEach { $0.removeFromSuperview() }
         commandButtons.removeAll()
         commands.removeAll()
+        textFields.removeAll()
+        choiceRows.removeAll()
 
         let count = Int(j2me_ui_get_form_item_count())
         for i in 0..<count {
@@ -377,11 +382,14 @@ class FormView: UIView, UITextFieldDelegate {
     }
 
     @objc private func showFormMenu(_ sender: UIButton) {
+        syncAllTextFields()
         guard let parentVC = self.topMostPresentedViewController else { return }
         let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
         for cmd in commands {
             alert.addAction(UIAlertAction(title: cmd.label, style: .default) { [weak self] _ in
                 self?.endEditing(true)
+                self?.syncAllTextFields()
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 j2me_input_post_key(Int32(J2ME_UI_COMMAND_ACTION), cmd.id)
             })
         }
@@ -488,6 +496,7 @@ class FormView: UIView, UITextFieldDelegate {
         tf.inputAccessoryView = toolbar
 
         tf.addTarget(self, action: #selector(textFieldChanged(_:)), for: .editingChanged)
+        textFields[index] = tf
         container.addArrangedSubview(tf)
 
         NSLayoutConstraint.activate([
@@ -574,6 +583,7 @@ class FormView: UIView, UITextFieldDelegate {
             ])
 
             rowBtn.addTarget(self, action: #selector(choiceRowTapped(_:)), for: .touchUpInside)
+            choiceRows[rowBtn.tag] = (stack: rowStack, isMultiple: isMultiple, label: optLabel)
             container.addArrangedSubview(rowBtn)
         }
 
@@ -642,9 +652,32 @@ class FormView: UIView, UITextFieldDelegate {
         return v
     }
 
+    func syncAllTextFields() {
+        for (index, tf) in textFields {
+            let text = tf.text ?? ""
+            text.withCString { cstr in
+                j2me_ui_set_form_item_text(Int32(index), cstr)
+            }
+        }
+    }
+
+    private func updateRowIndicator(tag: Int, isSelected: Bool) {
+        guard let entry = choiceRows[tag] else { return }
+        if let oldIndicator = entry.stack.arrangedSubviews.first {
+            oldIndicator.removeFromSuperview()
+        }
+        let newIndicator = makeIndicatorView(isMultiple: entry.isMultiple, isSelected: isSelected)
+        entry.stack.insertArrangedSubview(newIndicator, at: 0)
+        entry.label.font = .systemFont(ofSize: 16, weight: isSelected ? .medium : .regular)
+        entry.label.textColor = isSelected ? UIColor(red: 0.10, green: 0.10, blue: 0.12, alpha: 1.0) : UIColor(red: 0.25, green: 0.25, blue: 0.28, alpha: 1.0)
+    }
+
     @objc private func choiceRowTapped(_ sender: UIButton) {
         let feedback = UISelectionFeedbackGenerator()
         feedback.selectionChanged()
+
+        // 1. Immediately commit all active textfields before touching choices
+        syncAllTextFields()
 
         let itemIndex = sender.tag / 1000
         let optIndex = sender.tag % 1000
@@ -663,6 +696,12 @@ class FormView: UIView, UITextFieldDelegate {
                 flags[optIndex].toggle()
             }
             parts[2] = flags.map { $0 ? "1" : "0" }.joined(separator: ",")
+            let updated = parts.joined(separator: "\n")
+            updated.withCString { cstr in
+                j2me_ui_set_form_item_text(Int32(itemIndex), cstr)
+            }
+            let isSel = (optIndex < flags.count) ? flags[optIndex] : false
+            updateRowIndicator(tag: sender.tag, isSelected: isSel)
         } else {
             // EXCLUSIVE / POPUP: single select
             parts[0] = "\(optIndex)"
@@ -670,28 +709,42 @@ class FormView: UIView, UITextFieldDelegate {
                 flags[i] = (i == optIndex)
             }
             parts[2] = flags.map { $0 ? "1" : "0" }.joined(separator: ",")
+            let updated = parts.joined(separator: "\n")
+            updated.withCString { cstr in
+                j2me_ui_set_form_item_text(Int32(itemIndex), cstr)
+            }
+            for i in 0..<options.count {
+                let rowTag = itemIndex * 1000 + i
+                updateRowIndicator(tag: rowTag, isSelected: (i == optIndex))
+            }
         }
+    }
 
-        let updated = parts.joined(separator: "\n")
-        updated.withCString { cstr in
-            j2me_ui_set_form_item_text(Int32(itemIndex), cstr)
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        let text = textField.text ?? ""
+        text.withCString { cstr in
+            j2me_ui_set_form_item_text(Int32(textField.tag), cstr)
         }
-
-        // Instantly refresh form so radio states update smoothly
-        buildFromNativeData()
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        let text = textField.text ?? ""
+        text.withCString { cstr in
+            j2me_ui_set_form_item_text(Int32(textField.tag), cstr)
+        }
         textField.resignFirstResponder()
         return true
     }
 
     @objc func dismissKeyboard() {
         endEditing(true)
+        syncAllTextFields()
     }
 
     @objc private func commandTapped(_ sender: UIButton) {
         endEditing(true)
+        syncAllTextFields()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         let cmdId = Int32(sender.tag)
         j2me_input_post_key(Int32(J2ME_UI_COMMAND_ACTION), cmdId)
     }

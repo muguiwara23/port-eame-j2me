@@ -16,7 +16,7 @@
 // Ring buffer
 // ============================================================
 
-#define INPUT_QUEUE_SIZE 256
+#define INPUT_QUEUE_SIZE 1024
 #define INPUT_QUEUE_MASK (INPUT_QUEUE_SIZE - 1)
 
 typedef struct {

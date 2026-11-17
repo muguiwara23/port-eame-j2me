@@ -13,6 +13,7 @@ import javax.microedition.midlet.MIDlet;
 public class Display {
     private static Display instance;
     private static volatile boolean isHandlingCommandAction = false;
+    private static volatile long lastUserCommandTime = 0;
     private Displayable current;
     private volatile boolean running;
     private static final EventQueue eventQueue = new EventQueue();
@@ -47,13 +48,16 @@ public class Display {
         Displayable old = current;
 
         // If the user is actively viewing/editing a Form or TextBox ("Cài đặt cơ bản"),
-        // do not let a background timer thread call setCurrent(Canvas) to interrupt the user UI!
-        // ONLY allow switching to Canvas if triggered by user interaction (e.g. tapping "Quay lại").
+        // do not let an unsolicited background timer thread call setCurrent(Canvas) to interrupt the user UI!
+        // Allow switching to Canvas if triggered by user interaction (e.g. tapping "Lưu" / "Quay lại"
+        // or any midlet handler responding within 15 seconds of user command).
         if ((current instanceof Form || current instanceof TextBox) && (d instanceof Canvas)) {
-            if (!isHandlingCommandAction) {
+            boolean userAllowed = isHandlingCommandAction || (System.currentTimeMillis() - lastUserCommandTime < 15000);
+            if (!userAllowed) {
                 System.out.println("[Display] Blocked background setCurrent(Canvas) while user UI is active: " + current);
                 return;
             }
+            lastUserCommandTime = 0;
         }
 
         current = d;
@@ -177,6 +181,7 @@ public class Display {
                                      type == 4 ? CanvasEvent.KEY_RELEASED : CanvasEvent.KEY_REPEATED;
                         Display.eventQueue.postEvent(CanvasEvent.getInstance(c, ceType, nativeEvent[3]));
                     } else if (type == 10) {
+                        lastUserCommandTime = System.currentTimeMillis();
                         int cmdId = nativeEvent[3];
                         if (current instanceof TextBox) {
                             try {
@@ -201,6 +206,7 @@ public class Display {
                             isHandlingCommandAction = false;
                         }
                     } else if (type == 11 && current instanceof List) {
+                        lastUserCommandTime = System.currentTimeMillis();
                         isHandlingCommandAction = true;
                         try {
                             ((List) current).handleListSelect(nativeEvent[3]);

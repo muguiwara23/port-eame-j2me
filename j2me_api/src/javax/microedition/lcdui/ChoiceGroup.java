@@ -25,8 +25,17 @@ public class ChoiceGroup extends Item implements Choice {
     public boolean isSelected(int i) { return selected.get(i); }
     public void set(int i, String s, Image img) { strings.set(i,s); images.set(i,img); }
     public void setSelectedIndex(int i, boolean s) {
-        if (choiceType==EXCLUSIVE) for (int j=0;j<selected.size();j++) selected.set(j,Boolean.FALSE);
-        if (i >= 0 && i < selected.size()) selected.set(i,s);
+        if (i < 0 || i >= selected.size()) return;
+        if (choiceType == EXCLUSIVE) {
+            if (s) {
+                for (int j = 0; j < selected.size(); j++) selected.set(j, Boolean.FALSE);
+                selected.set(i, Boolean.TRUE);
+            } else {
+                selected.set(i, Boolean.FALSE);
+            }
+        } else {
+            selected.set(i, s ? Boolean.TRUE : Boolean.FALSE);
+        }
         // Do not call owner.showNative() here to avoid recursive re-renders during native sync
     }
     public int size() { return strings.size(); }
