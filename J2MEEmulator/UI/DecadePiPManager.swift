@@ -42,16 +42,8 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         self.currentTab = tabNumber
     }
 
-    private func getLogoCGImage() -> CGImage? {
-        if let cg = gameIcon?.cgImage { return cg }
-        guard let icon = gameIcon else { return nil }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1.0
-        let renderer = UIGraphicsImageRenderer(size: icon.size, format: format)
-        let img = renderer.image { _ in
-            icon.draw(in: CGRect(origin: .zero, size: icon.size))
-        }
-        return img.cgImage
+    private func getLogoCGImage(fallback: CGImage) -> CGImage {
+        return gameIcon?.cgImage ?? fallback
     }
 
     override init() {
@@ -236,112 +228,48 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         ) else { return nil }
 
         if isBubbleMode {
-            // Fill background with black
-            context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
-            context.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
+            // Fill background with clean black
+            context.setFillColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
+            context.fill(CGRect(x: 0, y: 0, width: 160, height: 160))
 
             let centerX: CGFloat = 80.0
             let centerY: CGFloat = 80.0
-            let bubbleRadius: CGFloat = 74.0
+            let bubbleRadius: CGFloat = 72.0
 
-            // Glowing cyan halo
+            // Glowing cyan outer ring
             context.setStrokeColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 0.45)
-            context.setLineWidth(8)
-            context.strokeEllipse(in: CGRect(
-                x: centerX - bubbleRadius - 2,
-                y: centerY - bubbleRadius - 2,
-                width: (bubbleRadius + 2) * 2,
-                height: (bubbleRadius + 2) * 2
-            ))
+            context.setLineWidth(8.0)
+            context.strokeEllipse(in: CGRect(x: centerX - bubbleRadius, y: centerY - bubbleRadius, width: bubbleRadius * 2, height: bubbleRadius * 2))
 
-            // Main sharp cyan ring
+            // Main cyan ring
             context.setStrokeColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
             context.setLineWidth(4.0)
-            context.strokeEllipse(in: CGRect(
-                x: centerX - bubbleRadius,
-                y: centerY - bubbleRadius,
-                width: bubbleRadius * 2,
-                height: bubbleRadius * 2
-            ))
+            context.strokeEllipse(in: CGRect(x: centerX - bubbleRadius, y: centerY - bubbleRadius, width: bubbleRadius * 2, height: bubbleRadius * 2))
 
             // Dark inner circle base
-            context.setFillColor(red: 0.12, green: 0.15, blue: 0.20, alpha: 1.0)
-            context.fillEllipse(in: CGRect(
-                x: centerX - bubbleRadius + 2,
-                y: centerY - bubbleRadius + 2,
-                width: (bubbleRadius - 2) * 2,
-                height: (bubbleRadius - 2) * 2
-            ))
+            context.setFillColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 1.0)
+            context.fillEllipse(in: CGRect(x: centerX - bubbleRadius + 2.0, y: centerY - bubbleRadius + 2.0, width: (bubbleRadius - 2.0) * 2, height: (bubbleRadius - 2.0) * 2))
 
             // Draw game logo in the center of the bubble!
-            let logoImage = getLogoCGImage() ?? cgImage
+            let logoImage = getLogoCGImage(fallback: cgImage)
             let logoRadius: CGFloat = 52.0
             context.saveGState()
-            context.addEllipse(in: CGRect(
-                x: centerX - logoRadius,
-                y: centerY - logoRadius,
-                width: logoRadius * 2,
-                height: logoRadius * 2
-            ))
+            context.addEllipse(in: CGRect(x: centerX - logoRadius, y: centerY - logoRadius, width: logoRadius * 2, height: logoRadius * 2))
             context.clip()
 
             context.interpolationQuality = .high
-            context.draw(logoImage, in: CGRect(
-                x: centerX - logoRadius,
-                y: centerY - logoRadius,
-                width: logoRadius * 2,
-                height: logoRadius * 2
-            ))
+            context.draw(logoImage, in: CGRect(x: centerX - logoRadius, y: centerY - logoRadius, width: logoRadius * 2, height: logoRadius * 2))
             context.restoreGState()
 
-            // Draw tab badge and hint text
-            context.saveGState()
-            context.translateBy(x: 0, y: CGFloat(targetH))
-            context.scaleBy(x: 1.0, y: -1.0)
-            UIGraphicsPushContext(context)
-
-            // Red badge with tab number at top right
-            let badgeRect = CGRect(x: 110, y: 16, width: 34, height: 34)
-            let badgePath = UIBezierPath(ovalIn: badgeRect)
-            UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0).setFill()
-            badgePath.fill()
-            UIColor.white.setStroke()
-            badgePath.lineWidth = 2.0
-            badgePath.stroke()
-
-            let badgeText = "\(currentTab)"
-            let badgeAttrs: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 16, weight: .heavy),
-                .foregroundColor: UIColor.white
-            ]
-            let badgeSize = (badgeText as NSString).size(withAttributes: badgeAttrs)
-            (badgeText as NSString).draw(
-                at: CGPoint(x: badgeRect.midX - badgeSize.width / 2, y: badgeRect.midY - badgeSize.height / 2),
-                withAttributes: badgeAttrs
-            )
-
-            // Bottom pill indicator: "▶ CHẠM MỞ"
-            let pillRect = CGRect(x: 32, y: 132, width: 96, height: 22)
-            let pillPath = UIBezierPath(roundedRect: pillRect, cornerRadius: 11)
-            UIColor(white: 0.05, alpha: 0.90).setFill()
-            pillPath.fill()
-            UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 0.9).setStroke()
-            pillPath.lineWidth = 1.0
-            pillPath.stroke()
-
-            let pillText = "▶ CHẠM MỞ"
-            let pillAttrs: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 10, weight: .bold),
-                .foregroundColor: UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
-            ]
-            let pillSize = (pillText as NSString).size(withAttributes: pillAttrs)
-            (pillText as NSString).draw(
-                at: CGPoint(x: pillRect.midX - pillSize.width / 2, y: pillRect.midY - pillSize.height / 2),
-                withAttributes: pillAttrs
-            )
-
-            UIGraphicsPopContext()
-            context.restoreGState()
+            // Red badge with tab indicator in the corner
+            let badgeX: CGFloat = 114.0
+            let badgeY: CGFloat = 114.0
+            let badgeRadius: CGFloat = 16.0
+            context.setFillColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0)
+            context.fillEllipse(in: CGRect(x: badgeX - badgeRadius, y: badgeY - badgeRadius, width: badgeRadius * 2, height: badgeRadius * 2))
+            context.setStrokeColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
+            context.setLineWidth(2.0)
+            context.strokeEllipse(in: CGRect(x: badgeX - badgeRadius, y: badgeY - badgeRadius, width: badgeRadius * 2, height: badgeRadius * 2))
         } else {
             // Clear container background with clean black
             context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
