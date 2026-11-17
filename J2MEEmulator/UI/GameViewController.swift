@@ -944,18 +944,18 @@ class GameViewController: UIViewController {
     }
 
     private func openInGameSettings() {
+        let fileName = URL(fileURLWithPath: jarPath).lastPathComponent
         let appInfo = AppsListViewController.AppInfo(
             name: appName,
             path: jarPath,
-            vendor: "",
+            fileName: fileName,
             version: "1.0",
-            icon: appIcon,
-            description: "",
-            sizeFormatted: ""
+            vendor: nil,
+            icon: appIcon
         )
         let configVC = DecadeConfigViewController(app: appInfo, onStart: nil)
         let nav = UINavigationController(rootViewController: configVC)
-        nav.modalPresentationStyle = .formSheet
+        nav.modalPresentationStyle = UIModalPresentationStyle.formSheet
         present(nav, animated: true)
     }
 
@@ -986,14 +986,8 @@ class GameViewController: UIViewController {
         emulatorView.isAspectFit = isForceFullscreen ? false : isAspectFitEnabled
 
         let savedLayout = (UserDefaults.standard.object(forKey: "keypad_layout_\(currentGameId)") as? Int) ??
-                          (UserDefaults.standard.object(forKey: "keypad_layout_\(legacyGameId)") as? Int)
-        if savedLayout == 1 {
-            decadeKeypadView?.currentLayout = .numpad
-        } else if savedLayout == 2 {
-            decadeKeypadView?.currentLayout = .compactPhone
-        } else {
-            decadeKeypadView?.currentLayout = .arrows
-        }
+                          (UserDefaults.standard.object(forKey: "keypad_layout_\(legacyGameId)") as? Int) ?? 0
+        decadeKeypadView?.currentLayout = DecadeKeypadLayout(rawValue: savedLayout) ?? .arrows
 
         let savedAlpha = (UserDefaults.standard.object(forKey: "keypad_alpha_\(currentGameId)") as? Float) ??
                          (UserDefaults.standard.object(forKey: "keypad_alpha_\(legacyGameId)") as? Float) ?? 64.0
