@@ -13,6 +13,7 @@
 #include "jvm.h"
 #include "jvm_util.h"
 #include <stdio.h>
+#include <stdatomic.h>
 
 // ============================================================
 // Form builder state — accumulated by Java calls, flushed on show
