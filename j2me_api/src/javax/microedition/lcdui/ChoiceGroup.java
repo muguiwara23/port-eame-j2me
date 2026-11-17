@@ -15,18 +15,43 @@ public class ChoiceGroup extends Item implements Choice {
             append(stringElements[i], imageElements != null && i < imageElements.length ? imageElements[i] : null);
     }
 
-    public int append(String s, Image img) { strings.add(s); images.add(img); selected.add(Boolean.FALSE); return strings.size()-1; }
-    public void delete(int i) { strings.remove(i); images.remove(i); selected.remove(i); }
+    public int append(String s, Image img) {
+        boolean firstExclusive = (strings.isEmpty() && (choiceType == EXCLUSIVE || choiceType == POPUP));
+        strings.add(s != null ? s : "");
+        images.add(img);
+        selected.add(firstExclusive ? Boolean.TRUE : Boolean.FALSE);
+        return strings.size() - 1;
+    }
+    public void delete(int i) {
+        if (i < 0 || i >= strings.size()) return;
+        boolean wasSelected = selected.get(i);
+        strings.remove(i);
+        images.remove(i);
+        selected.remove(i);
+        if (wasSelected && !selected.isEmpty() && (choiceType == EXCLUSIVE || choiceType == POPUP)) {
+            int nextIdx = Math.min(i, selected.size() - 1);
+            selected.set(nextIdx, Boolean.TRUE);
+        }
+    }
     public void deleteAll() { strings.clear(); images.clear(); selected.clear(); }
-    public int getSelectedIndex() { for (int i=0;i<selected.size();i++) if (selected.get(i)) return i; return -1; }
+    public int getSelectedIndex() {
+        if (choiceType == MULTIPLE) return -1;
+        for (int i = 0; i < selected.size(); i++) if (selected.get(i)) return i;
+        return selected.isEmpty() ? -1 : 0;
+    }
     public String getString(int i) { return strings.get(i); }
     public Image getImage(int i) { return images.get(i); }
-    public void insert(int i, String s, Image img) { strings.add(i,s); images.add(i,img); selected.add(i,Boolean.FALSE); }
-    public boolean isSelected(int i) { return selected.get(i); }
-    public void set(int i, String s, Image img) { strings.set(i,s); images.set(i,img); }
+    public void insert(int i, String s, Image img) {
+        boolean firstExclusive = (strings.isEmpty() && (choiceType == EXCLUSIVE || choiceType == POPUP));
+        strings.add(i, s != null ? s : "");
+        images.add(i, img);
+        selected.add(i, firstExclusive ? Boolean.TRUE : Boolean.FALSE);
+    }
+    public boolean isSelected(int i) { return i >= 0 && i < selected.size() && selected.get(i); }
+    public void set(int i, String s, Image img) { strings.set(i, s != null ? s : ""); images.set(i, img); }
     public void setSelectedIndex(int i, boolean s) {
         if (i < 0 || i >= selected.size()) return;
-        if (choiceType == EXCLUSIVE) {
+        if (choiceType == EXCLUSIVE || choiceType == POPUP) {
             if (s) {
                 for (int j = 0; j < selected.size(); j++) selected.set(j, Boolean.FALSE);
                 selected.set(i, Boolean.TRUE);
@@ -36,11 +61,39 @@ public class ChoiceGroup extends Item implements Choice {
         } else {
             selected.set(i, s ? Boolean.TRUE : Boolean.FALSE);
         }
-        // Do not call owner.showNative() here to avoid recursive re-renders during native sync
     }
     public int size() { return strings.size(); }
-    public int getSelectedFlags(boolean[] a) { for(int i=0;i<a.length&&i<selected.size();i++) a[i]=selected.get(i); return selected.size(); }
-    public void setSelectedFlags(boolean[] a) { for(int i=0;i<a.length&&i<selected.size();i++) selected.set(i,a[i]); }
+    public int getSelectedFlags(boolean[] a) {
+        if (a == null) throw new NullPointerException();
+        int count = 0;
+        for (int i = 0; i < a.length; i++) {
+            if (i < selected.size()) {
+                boolean sel = selected.get(i);
+                a[i] = sel;
+                if (sel) count++;
+            } else {
+                a[i] = false;
+            }
+        }
+        return count;
+    }
+    public void setSelectedFlags(boolean[] a) {
+        if (a == null) throw new NullPointerException();
+        if (choiceType == EXCLUSIVE || choiceType == POPUP) {
+            int firstTrue = -1;
+            for (int i = 0; i < selected.size() && i < a.length; i++) {
+                if (a[i]) { firstTrue = i; break; }
+            }
+            if (firstTrue < 0 && !selected.isEmpty()) firstTrue = 0;
+            for (int i = 0; i < selected.size(); i++) {
+                selected.set(i, (i == firstTrue) ? Boolean.TRUE : Boolean.FALSE);
+            }
+        } else {
+            for (int i = 0; i < a.length && i < selected.size(); i++) {
+                selected.set(i, a[i] ? Boolean.TRUE : Boolean.FALSE);
+            }
+        }
+    }
     public int getFitPolicy() { return 0; }
     public void setFitPolicy(int p) {}
     public Font getFont(int i) { return Font.getDefaultFont(); }

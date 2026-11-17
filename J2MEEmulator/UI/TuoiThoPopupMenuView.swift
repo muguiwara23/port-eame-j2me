@@ -11,6 +11,7 @@ import UIKit
 final class TuoiThoPopupMenuView: UIView {
 
     var onOpenGameSettings: (() -> Void)?
+    var onOpenProxySettings: (() -> Void)?
     var onOpenKeyboardSettings: (() -> Void)?
     var onArrangeKeyboard: (() -> Void)?
     var onToggleKeyboardVisibility: (() -> Void)?
@@ -20,6 +21,7 @@ final class TuoiThoPopupMenuView: UIView {
     private let backdropView = UIView()
     private let cardView = UIView()
     private let contentStack = UIStackView()
+    private var isDismissing = false
 
     var isKeypadHidden: Bool = false {
         didSet {
@@ -43,7 +45,7 @@ final class TuoiThoPopupMenuView: UIView {
         backdropView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(backdropView)
 
-        let tapBackdrop = UITapGestureRecognizer(target: self, action: #selector(dismissMenu))
+        let tapBackdrop = UITapGestureRecognizer(target: self, action: #selector(handleDismissTap))
         backdropView.addGestureRecognizer(tapBackdrop)
 
         // Card Container
@@ -93,6 +95,15 @@ final class TuoiThoPopupMenuView: UIView {
             action: #selector(handleGameSettings)
         )
         contentStack.addArrangedSubview(btnGameSettings)
+
+        // 1b. Proxy SOCKS5 (Shield icon xanh dương)
+        let btnProxy = makeMenuItem(
+            iconName: "lock.shield.fill",
+            iconColor: UIColor(red: 0.10, green: 0.46, blue: 0.82, alpha: 1.0), // Blue #1976D2
+            title: "Proxy SOCKS5",
+            action: #selector(handleProxySettings)
+        )
+        contentStack.addArrangedSubview(btnProxy)
 
         // 2. Cài Đặt Bàn Phím (Keyboard+gear icon xanh)
         let btnKbSettings = makeMenuItem(
@@ -148,7 +159,7 @@ final class TuoiThoPopupMenuView: UIView {
             iconName: "xmark",
             iconColor: UIColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1.0),
             title: "Đóng",
-            action: #selector(dismissMenu)
+            action: #selector(handleDismissTap)
         )
         contentStack.addArrangedSubview(btnClose)
     }
@@ -229,6 +240,12 @@ final class TuoiThoPopupMenuView: UIView {
         }
     }
 
+    @objc private func handleProxySettings() {
+        dismissMenu { [weak self] in
+            self?.onOpenProxySettings?()
+        }
+    }
+
     @objc private func handleKbSettings() {
         dismissMenu { [weak self] in
             self?.onOpenKeyboardSettings?()
@@ -264,6 +281,7 @@ final class TuoiThoPopupMenuView: UIView {
     // ============================================================
 
     func show(in parentView: UIView) {
+        isDismissing = false
         frame = parentView.bounds
         alpha = 0
         cardView.transform = CGAffineTransform(scaleX: 0.88, y: 0.88).translatedBy(x: 10, y: -20)
@@ -275,7 +293,13 @@ final class TuoiThoPopupMenuView: UIView {
         })
     }
 
-    @objc func dismissMenu(completion: (() -> Void)? = nil) {
+    @objc private func handleDismissTap() {
+        dismissMenu(completion: nil)
+    }
+
+    func dismissMenu(completion: (() -> Void)? = nil) {
+        guard !isDismissing else { return }
+        isDismissing = true
         UIView.animate(withDuration: 0.18, delay: 0, options: [.curveEaseIn], animations: {
             self.alpha = 0
             self.cardView.transform = CGAffineTransform(scaleX: 0.88, y: 0.88).translatedBy(x: 10, y: -20)

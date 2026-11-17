@@ -430,7 +430,7 @@ class GameViewController: UIViewController {
         let savedAlpha = (UserDefaults.standard.object(forKey: "keypad_alpha_\(gid)") as? Float)
             ?? (UserDefaults.standard.object(forKey: "keypad_alpha_\(legGid)") as? Float)
             ?? 255.0
-        keypad.keypadAlphaValue = CGFloat(savedAlpha / 255.0)
+        keypad.keypadAlphaValue = (keypad.currentLayout == .tuoitho) ? 1.0 : max(0.35, CGFloat(savedAlpha / 255.0))
 
         keypad.translatesAutoresizingMaskIntoConstraints = false
         self.decadeKeypadView = keypad
@@ -882,6 +882,9 @@ class GameViewController: UIViewController {
         popup.onOpenGameSettings = { [weak self] in
             self?.openInGameSettings()
         }
+        popup.onOpenProxySettings = { [weak self] in
+            self?.openProxyManager(segment: 0)
+        }
         popup.onOpenKeyboardSettings = { [weak self] in
             self?.promptChangeKeyboardLayout()
         }
@@ -929,6 +932,10 @@ class GameViewController: UIViewController {
             self.showToast(message: "Đã chọn Bàn phím Kết Hợp")
         })
         alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = menuBtn
+            popover.sourceRect = menuBtn.bounds
+        }
         present(alert, animated: true)
     }
 
@@ -998,8 +1005,10 @@ class GameViewController: UIViewController {
         }
 
         let savedAlpha = (UserDefaults.standard.object(forKey: "keypad_alpha_\(currentGameId)") as? Float) ??
-                         (UserDefaults.standard.object(forKey: "keypad_alpha_\(legacyGameId)") as? Float) ?? 64.0
-        decadeKeypadView?.keypadAlphaValue = CGFloat(savedAlpha / 255.0)
+                         (UserDefaults.standard.object(forKey: "keypad_alpha_\(legacyGameId)") as? Float) ?? 255.0
+        if let kp = decadeKeypadView {
+            kp.keypadAlphaValue = (kp.currentLayout == .tuoitho) ? 1.0 : max(0.35, CGFloat(savedAlpha / 255.0))
+        }
 
         if isForceFullscreen {
             isKeypadHidden = true
@@ -1573,6 +1582,10 @@ class GameViewController: UIViewController {
             self?.showToast(message: "Đã hủy hẹn giờ")
         })
         alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = menuBtn
+            popover.sourceRect = menuBtn.bounds
+        }
         present(alert, animated: true)
     }
 
@@ -1588,6 +1601,10 @@ class GameViewController: UIViewController {
             self?.showToast(message: "Đã bật FPS không giới hạn")
         })
         alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = menuBtn
+            popover.sourceRect = menuBtn.bounds
+        }
         present(alert, animated: true)
     }
 

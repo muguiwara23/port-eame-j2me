@@ -12,8 +12,11 @@ import javax.microedition.midlet.MIDletStateChangeException;
 import javax.microedition.lcdui.Canvas;
 import javax.microedition.lcdui.Display;
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -87,9 +90,8 @@ public class MIDletRunner {
     }
 
     /**
-     * Read all attributes from the JAR's META-INF/MANIFEST.MF using ZipFile.
-     * Manual parsing since miniJVM's JarFile.getManifest().getMainAttributes()
-     * is not fully implemented.
+     * Read all attributes from the JAR's META-INF/MANIFEST.MF (case-insensitive)
+     * and merge companion .jad attributes if present (strict J2ME MIDP 2.0 spec).
      */
     private static Map<String, String> readManifest(String jarPath) throws Exception {
         Map<String, String> result = new HashMap<String, String>();
@@ -98,22 +100,62 @@ public class MIDletRunner {
         try {
             ZipEntry entry = zipFile.getEntry("META-INF/MANIFEST.MF");
             if (entry == null) {
-                System.out.println("[MIDletRunner] WARNING: No MANIFEST.MF in JAR");
-                return result;
+                Enumeration<? extends ZipEntry> entries = zipFile.entries();
+                while (entries.hasMoreElements()) {
+                    ZipEntry e = entries.nextElement();
+                    if (e.getName() != null && e.getName().equalsIgnoreCase("META-INF/MANIFEST.MF")) {
+                        entry = e;
+                        break;
+                    }
+                }
             }
+            if (entry == null) {
+                System.out.println("[MIDletRunner] WARNING: No MANIFEST.MF in JAR");
+            } else {
+                parseKeyValueStream(zipFile.getInputStream(entry), result);
+            }
+        } finally {
+            zipFile.close();
+        }
 
-            InputStream is = zipFile.getInputStream(entry);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        // Standard J2ME: overlay companion .jad file if present next to .jar
+        try {
+            int dot = jarPath.lastIndexOf('.');
+            String jadPath = (dot > 0 ? jarPath.substring(0, dot) : jarPath) + ".jad";
+            File jadFile = new File(jadPath);
+            if (jadFile.exists() && jadFile.isFile()) {
+                System.out.println("[MIDletRunner] Merging companion JAD: " + jadPath);
+                InputStream jadIs = new FileInputStream(jadFile);
+                try {
+                    parseKeyValueStream(jadIs, result);
+                } finally {
+                    jadIs.close();
+                }
+            }
+        } catch (Throwable ignored) {}
 
+        return result;
+    }
+
+    private static void parseKeyValueStream(InputStream is, Map<String, String> result) throws Exception {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        try {
             String lastKey = null;
             String line;
+            boolean firstLine = true;
             while ((line = reader.readLine()) != null) {
+                if (firstLine) {
+                    firstLine = false;
+                    if (line.length() > 0 && line.charAt(0) == '\uFEFF') {
+                        line = line.substring(1);
+                    }
+                }
                 if (line.isEmpty()) continue;
 
                 // Continuation line (starts with space)
                 if (line.charAt(0) == ' ' && lastKey != null) {
                     String prev = result.get(lastKey);
-                    result.put(lastKey, prev + line.substring(1));
+                    result.put(lastKey, (prev != null ? prev : "") + line.substring(1));
                     continue;
                 }
 
@@ -125,12 +167,9 @@ public class MIDletRunner {
                     lastKey = key;
                 }
             }
-            reader.close();
         } finally {
-            zipFile.close();
+            reader.close();
         }
-
-        return result;
     }
 
     /**
@@ -141,14 +180,20 @@ public class MIDletRunner {
         // Try MIDlet-1 first
         String midlet1 = attrs.get("MIDlet-1");
         if (midlet1 == null) {
-            // Try any MIDlet-N
+            // Try any MIDlet-N (case-insensitive)
             for (Map.Entry<String, String> entry : attrs.entrySet()) {
                 String key = entry.getKey();
-                if (key.startsWith("MIDlet-") && !key.equals("MIDlet-Name")
-                        && !key.equals("MIDlet-Version")
-                        && !key.equals("MIDlet-Vendor")) {
-                    midlet1 = entry.getValue();
-                    break;
+                if (key.length() > 7 && key.substring(0, 7).equalsIgnoreCase("MIDlet-")) {
+                    String suffix = key.substring(7);
+                    boolean isNum = suffix.length() > 0;
+                    for (int i = 0; i < suffix.length(); i++) {
+                        char c = suffix.charAt(i);
+                        if (c < '0' || c > '9') { isNum = false; break; }
+                    }
+                    if (isNum) {
+                        midlet1 = entry.getValue();
+                        break;
+                    }
                 }
             }
         }
@@ -158,11 +203,22 @@ public class MIDletRunner {
         System.out.println("[MIDletRunner] MIDlet-1: " + midlet1);
 
         // Parse "Name, Icon, ClassName"
+        String rawClass = null;
         String[] parts = midlet1.split(",");
         if (parts.length >= 3) {
-            return parts[2].trim();
+            rawClass = parts[2].trim();
+        } else if (parts.length == 2) {
+            rawClass = parts[1].trim();
         } else if (parts.length == 1) {
-            return parts[0].trim();
+            rawClass = parts[0].trim();
+        }
+
+        if (rawClass != null && rawClass.length() > 0) {
+            if (rawClass.endsWith(".class")) {
+                rawClass = rawClass.substring(0, rawClass.length() - 6);
+            }
+            rawClass = rawClass.replace('/', '.');
+            return rawClass;
         }
 
         return null;

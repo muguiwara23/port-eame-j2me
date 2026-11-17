@@ -32,7 +32,7 @@ class DecadeConfigViewController: UIViewController {
     // State for Độ Phân Giải
     private var selectedResIndex: Int = 3 // 360 default
     private let resOptions: [(label: String, val: Int)] = [
-        ("Theo Máy", 0),
+        ("Theo\nMáy", 0),
         ("240", 240),
         ("320", 320),
         ("360", 360),
@@ -47,6 +47,7 @@ class DecadeConfigViewController: UIViewController {
 
     // State for Khi Chơi
     private let keyboardStatusLabel = UILabel()
+    private let proxyStatusLabel = UILabel()
     private let treoSwitch = UISwitch()
     private let soundSwitch = UISwitch()
 
@@ -395,6 +396,62 @@ class DecadeConfigViewController: UIViewController {
         )
         cardStack.addArrangedSubview(soundRow)
 
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
+        // Item 4: Proxy SOCKS5 (Quản lý & gán proxy cho tab game)
+        let proxyRow = UIView()
+        proxyRow.translatesAutoresizingMaskIntoConstraints = false
+
+        let proxyIcon = makeChipIcon("lock.shield.fill",
+                                     bg: UIColor(red: 0.89, green: 0.95, blue: 0.99, alpha: 1.0),
+                                     tint: UIColor(red: 0.10, green: 0.46, blue: 0.82, alpha: 1.0))
+
+        let proxyTitle = UILabel()
+        proxyTitle.text = "Proxy SOCKS5"
+        proxyTitle.font = .systemFont(ofSize: 15, weight: .semibold)
+        proxyTitle.textColor = UIColor(red: 0.12, green: 0.14, blue: 0.12, alpha: 1.0)
+
+        proxyStatusLabel.text = "Chưa cấu hình (Nhấn để thêm)"
+        proxyStatusLabel.font = .systemFont(ofSize: 12, weight: .regular)
+        proxyStatusLabel.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
+
+        let proxyTextStack = UIStackView(arrangedSubviews: [proxyTitle, proxyStatusLabel])
+        proxyTextStack.axis = .vertical
+        proxyTextStack.spacing = 2
+        proxyTextStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let proxyChevron = UIImageView(image: UIImage(systemName: "chevron.right"))
+        proxyChevron.tintColor = UIColor(white: 0.65, alpha: 1.0)
+        proxyChevron.contentMode = .scaleAspectFit
+        proxyChevron.translatesAutoresizingMaskIntoConstraints = false
+
+        proxyRow.addSubview(proxyIcon)
+        proxyRow.addSubview(proxyTextStack)
+        proxyRow.addSubview(proxyChevron)
+
+        NSLayoutConstraint.activate([
+            proxyIcon.leadingAnchor.constraint(equalTo: proxyRow.leadingAnchor),
+            proxyIcon.centerYAnchor.constraint(equalTo: proxyRow.centerYAnchor),
+            proxyIcon.widthAnchor.constraint(equalToConstant: 36),
+            proxyIcon.heightAnchor.constraint(equalToConstant: 36),
+
+            proxyTextStack.leadingAnchor.constraint(equalTo: proxyIcon.trailingAnchor, constant: 12),
+            proxyTextStack.trailingAnchor.constraint(lessThanOrEqualTo: proxyChevron.leadingAnchor, constant: -8),
+            proxyTextStack.centerYAnchor.constraint(equalTo: proxyRow.centerYAnchor),
+
+            proxyChevron.trailingAnchor.constraint(equalTo: proxyRow.trailingAnchor),
+            proxyChevron.centerYAnchor.constraint(equalTo: proxyRow.centerYAnchor),
+            proxyChevron.widthAnchor.constraint(equalToConstant: 14),
+            proxyChevron.heightAnchor.constraint(equalToConstant: 14),
+            proxyRow.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        let proxyTap = UITapGestureRecognizer(target: self, action: #selector(proxySettingsTapped))
+        proxyRow.addGestureRecognizer(proxyTap)
+        proxyRow.isUserInteractionEnabled = true
+        cardStack.addArrangedSubview(proxyRow)
+
         contentStack.addArrangedSubview(card)
     }
 
@@ -586,8 +643,39 @@ class DecadeConfigViewController: UIViewController {
             self.saveValues()
         })
         alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+            popover.permittedArrowDirections = []
+        }
 
         present(alert, animated: true)
+    }
+
+    @objc private func proxySettingsTapped() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        let proxyVC = DecadeProxyViewController()
+        proxyVC.initialSegmentIndex = 0
+        let nav = UINavigationController(rootViewController: proxyVC)
+        nav.modalPresentationStyle = .pageSheet
+        present(nav, animated: true)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refreshProxyStatusLabel()
+    }
+
+    private func refreshProxyStatusLabel() {
+        DecadeProxyManager.shared.loadProxies()
+        let count = DecadeProxyManager.shared.proxies.count
+        if let assigned = DecadeProxyManager.shared.proxyForScreen(appId: app.name, slot: 0) {
+            proxyStatusLabel.text = "\(assigned.isSocks5 ? "SOCKS5" : "HTTP"): \(assigned.host):\(assigned.port)"
+        } else if count > 0 {
+            proxyStatusLabel.text = "Đã lưu \(count) proxy (Nhấn để gán)"
+        } else {
+            proxyStatusLabel.text = "Chưa cấu hình (Nhấn để thêm)"
+        }
     }
 
     private func applyKeyboardLayout(_ layout: Int) {
@@ -697,11 +785,15 @@ final class PillButton: UIButton {
     init(title: String) {
         super.init(frame: .zero)
         setTitle(title, for: .normal)
+        titleLabel?.numberOfLines = 2
+        titleLabel?.textAlignment = .center
+        titleLabel?.adjustsFontSizeToFitWidth = true
+        titleLabel?.minimumScaleFactor = 0.75
         layer.cornerRadius = 10
         layer.masksToBounds = true
-        contentEdgeInsets = UIEdgeInsets(top: 8, left: 10, bottom: 8, right: 10)
+        contentEdgeInsets = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
         translatesAutoresizingMaskIntoConstraints = false
-        heightAnchor.constraint(greaterThanOrEqualToConstant: 38).isActive = true
+        heightAnchor.constraint(greaterThanOrEqualToConstant: 40).isActive = true
         updateAppearance()
     }
 

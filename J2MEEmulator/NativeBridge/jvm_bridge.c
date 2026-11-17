@@ -146,14 +146,30 @@ int jvm_bridge_init_slot(int slot, const char *res_root, const char *save_root, 
     j2me_micro3d_gl_reg_natives(jvm);
     j2me_m3g_reg_natives(jvm);
 
-    // System properties
+    // System properties (Standard J2ME MIDP 2.0 + CLDC 1.1 + JSR-75 FileConnection + MMAPI)
     sys_properties_set_c(jvm, "os.name", "iOS");
     sys_properties_set_c(jvm, "app.save.root", (c8 *)save_root);
-    sys_properties_set_c(jvm, "microedition.platform", "Apple/iPhone");
+    sys_properties_set_c(jvm, "microedition.platform", "NokiaN73/2.0");
     sys_properties_set_c(jvm, "microedition.encoding", "UTF-8");
-    sys_properties_set_c(jvm, "microedition.locale", "en");
+    sys_properties_set_c(jvm, "microedition.locale", "vi-VN");
     sys_properties_set_c(jvm, "microedition.profiles", "MIDP-2.0");
     sys_properties_set_c(jvm, "microedition.configuration", "CLDC-1.1");
+    sys_properties_set_c(jvm, "microedition.io.file.FileConnection.version", "1.0");
+    sys_properties_set_c(jvm, "microedition.media.version", "1.1");
+    sys_properties_set_c(jvm, "microedition.m3g.version", "1.1");
+    sys_properties_set_c(jvm, "supports.mixing", "true");
+    sys_properties_set_c(jvm, "supports.audio.capture", "false");
+    sys_properties_set_c(jvm, "supports.video.capture", "false");
+    sys_properties_set_c(jvm, "supports.recording", "false");
+
+    char fileconn_dir[1152];
+    snprintf(fileconn_dir, sizeof(fileconn_dir), "file://%s/", save_root);
+    sys_properties_set_c(jvm, "fileconn.dir.memorycard", fileconn_dir);
+    sys_properties_set_c(jvm, "fileconn.dir.photos", fileconn_dir);
+    sys_properties_set_c(jvm, "fileconn.dir.videos", fileconn_dir);
+    sys_properties_set_c(jvm, "fileconn.dir.tones", fileconn_dir);
+    sys_properties_set_c(jvm, "fileconn.dir.music", fileconn_dir);
+    sys_properties_set_c(jvm, "fileconn.dir.roots.names", "MemoryCard");
 
     char inst_str[16];
     snprintf(inst_str, sizeof(inst_str), "%d", slot + 1);
