@@ -69,15 +69,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.5-native
-          name: "Vạn Trần J2ME Native iOS v2.5"
+          tag_name: v2.6-native
+          name: "Vạn Trần J2ME Native iOS v2.6"
           body: |
-            ## Vạn Trần J2ME iOS v2.5 — Native Multi-Tab Engine
+            ## Vạn Trần J2ME iOS v2.6 — Native Multi-Tab Engine
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - **Fix triệt để lỗi ghi đè 2 màn hình bên trong game**: Cô lập hoàn toàn DisplayLayer của PiP sang host view riêng biệt; màn hình game bên trong giờ đây hiển thị 1 màn hình duy nhất cực kỳ sắc nét và chuẩn xác, không còn bị lồng 2 màn hình.
-            - **Cửa sổ ngoài màn hình: Nút 1 chạm biến thành Bong bóng / Hiện lại cửa sổ**:
-              - Khi cửa sổ game đang nổi ngoài màn hình, chạm 1 chạm vào nút ở giữa (▶ / ⏸) hoặc nút tua: Cửa sổ sẽ lập tức biến thành **Bong bóng tròn nổi AssistiveTouch** (có vòng tròn phát sáng neon cyan và hiển thị trực tiếp game chạy mini bên trong).
-              - Chạm 1 chạm nữa vào nút: Bong bóng lập tức bung trở lại thành **Cửa sổ game to đầy đủ**!
+            - **Thu cả cửa sổ thành Bong bóng Logo Game nổi ngoài màn hình**:
+              - Khi bấm nút ở giữa (▶ / ⏸) hoặc nút tua: Toàn bộ khung cửa sổ nổi ngoài màn hình lập tức co nhỏ lại theo tỷ lệ 1:1 thành **Bong bóng tròn hiển thị trực tiếp LOGO GAME** nổi bật trên màn hình kèm số tab, không còn viền đen thừa, gọn gàng như AssistiveTouch.
+              - Bấm 1 chạm nữa vào nút ở giữa: Bong bóng lập tức bung to trở lại thành **Cửa sổ game to đầy đủ**!
+            - **Màn hình bên trong game**: 1 màn hình duy nhất chuẩn nét, không bị lồng đè 2 màn hình.
             - **Tự do kéo to nhỏ tuỳ ý ngoài màn hình chính**:
               1. **Dùng 2 ngón tay thu phóng (Pinch)**: Kéo giãn ra để phóng to cực đại tràn hết toàn bộ chiều ngang màn hình iPhone (~390pt) hoặc thu nhỏ tuỳ ý.
               2. **Chạm 2 lần (Double Tap)**: Chạm đúp nhanh 2 lần để phóng to cực đại hoặc thu nhỏ tức thì.

@@ -238,6 +238,7 @@ class GameViewController: UIViewController {
         view.insertSubview(pipHostView, at: 0)
 
         DecadePiPManager.shared.setup(sourceView: pipHostView)
+        DecadePiPManager.shared.setGameInfo(name: appName, icon: appIcon, tabNumber: activeTabIndex + 1)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -575,6 +576,7 @@ class GameViewController: UIViewController {
         if let icon = session.icon {
             appIcon = icon
         }
+        DecadePiPManager.shared.setGameInfo(name: session.appName, icon: appIcon, tabNumber: index + 1)
 
         for (i, btn) in tabButtons.enumerated() {
             if i == index {

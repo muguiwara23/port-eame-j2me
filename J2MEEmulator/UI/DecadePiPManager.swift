@@ -32,6 +32,28 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
 
     var onPiPStateChanged: ((Bool) -> Void)?
 
+    var gameName: String = "J2ME Game"
+    var gameIcon: UIImage?
+    var currentTab: Int = 1
+
+    func setGameInfo(name: String, icon: UIImage?, tabNumber: Int) {
+        self.gameName = name
+        self.gameIcon = icon
+        self.currentTab = tabNumber
+    }
+
+    private func getLogoCGImage() -> CGImage? {
+        if let cg = gameIcon?.cgImage { return cg }
+        guard let icon = gameIcon else { return nil }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: icon.size, format: format)
+        let img = renderer.image { _ in
+            icon.draw(in: CGRect(origin: .zero, size: icon.size))
+        }
+        return img.cgImage
+    }
+
     override init() {
         super.init()
         setupAudioSession()
@@ -174,16 +196,24 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         let drawX: Int
         let drawY: Int
 
-        if origW < origH {
-            targetH = origH
-            targetW = max(origW, (origH * 4) / 3)
-            drawX = (targetW - origW) / 2
-            drawY = 0
-        } else {
-            targetW = origW
-            targetH = origH
+        if isBubbleMode {
+            // 1:1 Compact Bubble Aspect Ratio: shrinks the entire PiP window into a tight bubble!
+            targetW = 160
+            targetH = 160
             drawX = 0
             drawY = 0
+        } else {
+            if origW < origH {
+                targetH = origH
+                targetW = max(origW, (origH * 4) / 3)
+                drawX = (targetW - origW) / 2
+                drawY = 0
+            } else {
+                targetW = origW
+                targetH = origH
+                drawX = 0
+                drawY = 0
+            }
         }
 
         guard let buffer = getPixelBuffer(width: targetW, height: targetH) else { return nil }
@@ -206,27 +236,27 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         ) else { return nil }
 
         if isBubbleMode {
-            // Draw clean dark background
-            context.setFillColor(red: 0.05, green: 0.06, blue: 0.08, alpha: 1.0)
+            // Fill background with black
+            context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
             context.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
 
-            let centerX = CGFloat(targetW) / 2.0
-            let centerY = CGFloat(targetH) / 2.0
-            let bubbleRadius: CGFloat = 85.0
+            let centerX: CGFloat = 80.0
+            let centerY: CGFloat = 80.0
+            let bubbleRadius: CGFloat = 74.0
 
-            // Outer cyan glowing halo
-            context.setStrokeColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 0.35)
-            context.setLineWidth(10)
+            // Glowing cyan halo
+            context.setStrokeColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 0.45)
+            context.setLineWidth(8)
             context.strokeEllipse(in: CGRect(
-                x: centerX - bubbleRadius - 3,
-                y: centerY - bubbleRadius - 3,
-                width: (bubbleRadius + 3) * 2,
-                height: (bubbleRadius + 3) * 2
+                x: centerX - bubbleRadius - 2,
+                y: centerY - bubbleRadius - 2,
+                width: (bubbleRadius + 2) * 2,
+                height: (bubbleRadius + 2) * 2
             ))
 
-            // Main cyan ring
-            context.setStrokeColor(red: 0.13, green: 0.59, blue: 0.95, alpha: 1.0)
-            context.setLineWidth(4)
+            // Main sharp cyan ring
+            context.setStrokeColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
+            context.setLineWidth(4.0)
             context.strokeEllipse(in: CGRect(
                 x: centerX - bubbleRadius,
                 y: centerY - bubbleRadius,
@@ -234,8 +264,8 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
                 height: bubbleRadius * 2
             ))
 
-            // Inner circle base
-            context.setFillColor(red: 0.09, green: 0.11, blue: 0.15, alpha: 1.0)
+            // Dark inner circle base
+            context.setFillColor(red: 0.12, green: 0.15, blue: 0.20, alpha: 1.0)
             context.fillEllipse(in: CGRect(
                 x: centerX - bubbleRadius + 2,
                 y: centerY - bubbleRadius + 2,
@@ -243,44 +273,72 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
                 height: (bubbleRadius - 2) * 2
             ))
 
-            // Clip to circle and draw live game thumbnail inside
+            // Draw game logo in the center of the bubble!
+            let logoImage = getLogoCGImage() ?? cgImage
+            let logoRadius: CGFloat = 52.0
             context.saveGState()
-            let clipRadius = bubbleRadius - 6
             context.addEllipse(in: CGRect(
-                x: centerX - clipRadius,
-                y: centerY - clipRadius,
-                width: clipRadius * 2,
-                height: clipRadius * 2
+                x: centerX - logoRadius,
+                y: centerY - logoRadius,
+                width: logoRadius * 2,
+                height: logoRadius * 2
             ))
             context.clip()
 
-            let thumbW = CGFloat(origW) * (clipRadius * 2 / CGFloat(origH))
-            let thumbH = clipRadius * 2
-            let thumbX = centerX - thumbW / 2
-            let thumbY = centerY - thumbH / 2
             context.interpolationQuality = .high
-            context.draw(cgImage, in: CGRect(x: thumbX, y: thumbY, width: thumbW, height: thumbH))
+            context.draw(logoImage, in: CGRect(
+                x: centerX - logoRadius,
+                y: centerY - logoRadius,
+                width: logoRadius * 2,
+                height: logoRadius * 2
+            ))
             context.restoreGState()
 
-            // Draw hint text
+            // Draw tab badge and hint text
             context.saveGState()
             context.translateBy(x: 0, y: CGFloat(targetH))
             context.scaleBy(x: 1.0, y: -1.0)
             UIGraphicsPushContext(context)
 
-            let hintText = "● BONG BÓNG • CHẠM ▶ MỞ CỬA SỔ ●"
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 12, weight: .bold),
-                .foregroundColor: UIColor(red: 0.20, green: 0.75, blue: 1.0, alpha: 1.0)
+            // Red badge with tab number at top right
+            let badgeRect = CGRect(x: 110, y: 16, width: 34, height: 34)
+            let badgePath = UIBezierPath(ovalIn: badgeRect)
+            UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1.0).setFill()
+            badgePath.fill()
+            UIColor.white.setStroke()
+            badgePath.lineWidth = 2.0
+            badgePath.stroke()
+
+            let badgeText = "\(currentTab)"
+            let badgeAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 16, weight: .heavy),
+                .foregroundColor: UIColor.white
             ]
-            let textSize = (hintText as NSString).size(withAttributes: attrs)
-            let textRect = CGRect(
-                x: (CGFloat(targetW) - textSize.width) / 2,
-                y: CGFloat(targetH) - 24,
-                width: textSize.width,
-                height: textSize.height
+            let badgeSize = (badgeText as NSString).size(withAttributes: badgeAttrs)
+            (badgeText as NSString).draw(
+                at: CGPoint(x: badgeRect.midX - badgeSize.width / 2, y: badgeRect.midY - badgeSize.height / 2),
+                withAttributes: badgeAttrs
             )
-            (hintText as NSString).draw(in: textRect, withAttributes: attrs)
+
+            // Bottom pill indicator: "▶ CHẠM MỞ"
+            let pillRect = CGRect(x: 32, y: 132, width: 96, height: 22)
+            let pillPath = UIBezierPath(roundedRect: pillRect, cornerRadius: 11)
+            UIColor(white: 0.05, alpha: 0.90).setFill()
+            pillPath.fill()
+            UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 0.9).setStroke()
+            pillPath.lineWidth = 1.0
+            pillPath.stroke()
+
+            let pillText = "▶ CHẠM MỞ"
+            let pillAttrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 10, weight: .bold),
+                .foregroundColor: UIColor(red: 0.0, green: 0.85, blue: 1.0, alpha: 1.0)
+            ]
+            let pillSize = (pillText as NSString).size(withAttributes: pillAttrs)
+            (pillText as NSString).draw(
+                at: CGPoint(x: pillRect.midX - pillSize.width / 2, y: pillRect.midY - pillSize.height / 2),
+                withAttributes: pillAttrs
+            )
 
             UIGraphicsPopContext()
             context.restoreGState()
@@ -322,7 +380,11 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
     }
 
     // MARK: - AVPictureInPictureSampleBufferPlaybackDelegate
-    var isBubbleMode: Bool = false
+    var isBubbleMode: Bool = false {
+        didSet {
+            displayLayer.flush()
+        }
+    }
 
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
