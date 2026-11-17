@@ -1017,6 +1017,9 @@ class GameViewController: UIViewController {
             let nextTab = (self.activeTabIndex + 1) % self.tabButtons.count
             self.selectTab(at: nextTab)
         }
+        DecadeMiniWindow.shared.onShowMenu = {
+            DecadeFloatingBubble.shared.showActionSheetMenu()
+        }
     }
 
     private func promptSwitchTab() {
@@ -1044,13 +1047,13 @@ class GameViewController: UIViewController {
             setupFloatingBubble()
             DecadeFloatingBubble.shared.show(in: view.window)
             view.window?.bringSubviewToFront(DecadeFloatingBubble.shared)
-            DecadePiPManager.shared.startPiP()
-            showToast(message: "Đã bật treo & Cửa sổ nổi PiP ngoài màn hình")
+            showToast(message: "Đã bật chạy nền • Chạm vào bong bóng để mở cửa sổ tuỳ chỉnh")
         } else {
             dismissOledBlackOverlay()
             DecadeFloatingBubble.shared.hide()
+            DecadeMiniWindow.shared.hide()
             DecadePiPManager.shared.stopPiP()
-            showToast(message: "Đã tắt treo tắt màn")
+            showToast(message: "Đã tắt chạy nền")
         }
     }
 

@@ -90,6 +90,9 @@ final class DecadeFloatingBubble: UIView {
 
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         addGestureRecognizer(tap)
+
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        addGestureRecognizer(longPress)
     }
 
     func setGameInfo(name: String, icon: UIImage?, tabNumber: Int) {
@@ -174,7 +177,17 @@ final class DecadeFloatingBubble: UIView {
 
     @objc private func handleTap() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        // Tap bubble: Directly show / toggle the customizable resizable window!
+        onToggleMiniWindow?()
+    }
 
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        showActionSheetMenu()
+    }
+
+    func showActionSheetMenu() {
         guard let parentVC = self.topMostPresentedViewController else { return }
 
         let alert = UIAlertController(

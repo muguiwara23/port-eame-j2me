@@ -163,9 +163,30 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
     }
 
     private func createSampleBuffer(from cgImage: CGImage) -> CMSampleBuffer? {
-        let w = cgImage.width
-        let h = cgImage.height
-        guard let buffer = getPixelBuffer(width: w, height: h) else { return nil }
+        let origW = cgImage.width
+        let origH = cgImage.height
+
+        // Portrait 3:4 video (240x320) is severely restricted by iOS PiP size limits.
+        // Expanding the container to 4:3 landscape ratio allows iOS PiP to expand
+        // to the FULL WIDTH of the iPhone screen, unlocking free multi-size resizing!
+        let targetW: Int
+        let targetH: Int
+        let drawX: Int
+        let drawY: Int
+
+        if origW < origH {
+            targetH = origH
+            targetW = max(origW, (origH * 4) / 3)
+            drawX = (targetW - origW) / 2
+            drawY = 0
+        } else {
+            targetW = origW
+            targetH = origH
+            drawX = 0
+            drawY = 0
+        }
+
+        guard let buffer = getPixelBuffer(width: targetW, height: targetH) else { return nil }
 
         CVPixelBufferLockBaseAddress(buffer, [])
         defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
@@ -176,15 +197,21 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
 
         guard let context = CGContext(
             data: baseAddress,
-            width: w,
-            height: h,
+            width: targetW,
+            height: targetH,
             bitsPerComponent: 8,
             bytesPerRow: bytesPerRow,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
 
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: w, height: h))
+        // Clear container background with clean black
+        context.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: targetW, height: targetH))
+
+        // Draw game frame centered and pixel-perfect
+        context.interpolationQuality = .none
+        context.draw(cgImage, in: CGRect(x: drawX, y: drawY, width: origW, height: origH))
 
         var formatDesc: CMVideoFormatDescription?
         let vStatus = CMVideoFormatDescriptionCreateForImageBuffer(
@@ -214,11 +241,13 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
     }
 
     // MARK: - AVPictureInPictureSampleBufferPlaybackDelegate
+    private var isPiPBubbleOnly: Bool = false
+
     func pictureInPictureController(
         _ pictureInPictureController: AVPictureInPictureController,
         setPlaying playing: Bool
     ) {
-        // Handle play/pause
+        isPiPBubbleOnly.toggle()
     }
 
     func pictureInPictureControllerTimeRangeForPlayback(

@@ -15,6 +15,7 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
     var onTogglePiP: (() -> Void)?
     var onSwitchTab: (() -> Void)?
     var onRestoreFullScreen: (() -> Void)?
+    var onShowMenu: (() -> Void)?
 
     // UI Elements
     private let blurBackground = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
@@ -96,6 +97,12 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
         tabBtn.titleLabel?.font = .systemFont(ofSize: 12)
         tabBtn.addTarget(self, action: #selector(tabTapped), for: .touchUpInside)
         btnStack.addArrangedSubview(tabBtn)
+
+        let menuBtn = UIButton(type: .system)
+        menuBtn.setTitle("⚙", for: .normal)
+        menuBtn.titleLabel?.font = .systemFont(ofSize: 12)
+        menuBtn.addTarget(self, action: #selector(menuTapped), for: .touchUpInside)
+        btnStack.addArrangedSubview(menuBtn)
 
         let closeBtn = UIButton(type: .system)
         closeBtn.setTitle("✕", for: .normal)
@@ -241,6 +248,11 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
     @objc private func tabTapped() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         onSwitchTab?()
+    }
+
+    @objc private func menuTapped() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onShowMenu?()
     }
 
     @objc private func closeTapped() {
