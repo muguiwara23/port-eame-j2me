@@ -1047,13 +1047,14 @@ class GameViewController: UIViewController {
             setupFloatingBubble()
             DecadeFloatingBubble.shared.show(in: view.window)
             view.window?.bringSubviewToFront(DecadeFloatingBubble.shared)
-            showToast(message: "Đã bật chạy nền • Chạm vào bong bóng để mở cửa sổ tuỳ chỉnh")
+            DecadePiPManager.shared.startPiP()
+            showToast(message: "Đã bật treo & Cửa sổ nổi ngoài màn hình")
         } else {
             dismissOledBlackOverlay()
             DecadeFloatingBubble.shared.hide()
             DecadeMiniWindow.shared.hide()
             DecadePiPManager.shared.stopPiP()
-            showToast(message: "Đã tắt chạy nền")
+            showToast(message: "Đã tắt treo tắt màn")
         }
     }
 

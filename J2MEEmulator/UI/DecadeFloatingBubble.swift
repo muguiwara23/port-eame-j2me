@@ -177,8 +177,7 @@ final class DecadeFloatingBubble: UIView {
 
     @objc private func handleTap() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        // Tap bubble: Directly show / toggle the customizable resizable window!
-        onToggleMiniWindow?()
+        showActionSheetMenu()
     }
 
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
