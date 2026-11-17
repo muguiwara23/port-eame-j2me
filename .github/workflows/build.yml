@@ -69,18 +69,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.6-native
-          name: "Vạn Trần J2ME Native iOS v2.6"
+          tag_name: v2.7-native
+          name: "Vạn Trần J2ME Native iOS v2.7"
           body: |
-            ## Vạn Trần J2ME iOS v2.6 — Native Multi-Tab Engine
+            ## Vạn Trần J2ME iOS v2.7 — Native Multi-Tab Engine
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - **Thu cả cửa sổ thành Bong bóng Logo Game nổi ngoài màn hình**:
-              - Khi bấm nút ở giữa (▶ / ⏸) hoặc nút tua: Toàn bộ khung cửa sổ nổi ngoài màn hình lập tức co nhỏ lại theo tỷ lệ 1:1 thành **Bong bóng tròn hiển thị trực tiếp LOGO GAME** nổi bật trên màn hình kèm số tab, không còn viền đen thừa, gọn gàng như AssistiveTouch.
-              - Bấm 1 chạm nữa vào nút ở giữa: Bong bóng lập tức bung to trở lại thành **Cửa sổ game to đầy đủ**!
-            - **Màn hình bên trong game**: 1 màn hình duy nhất chuẩn nét, không bị lồng đè 2 màn hình.
-            - **Tự do kéo to nhỏ tuỳ ý ngoài màn hình chính**:
-              1. **Dùng 2 ngón tay thu phóng (Pinch)**: Kéo giãn ra để phóng to cực đại tràn hết toàn bộ chiều ngang màn hình iPhone (~390pt) hoặc thu nhỏ tuỳ ý.
-              2. **Chạm 2 lần (Double Tap)**: Chạm đúp nhanh 2 lần để phóng to cực đại hoặc thu nhỏ tức thì.
+            - **Cơ chế 1-chạm chuẩn Bong bóng Messenger (Chat Heads)**:
+              - **Chạm 1 chạm vào Bong bóng Logo**: Bong bóng thu lại và bung ra **Cửa sổ màn hình nhỏ tuỳ chỉnh** (có thể kéo to nhỏ tuỳ ý bằng tay cầm ◢ hoặc cử chỉ 2 ngón tay).
+              - **Chạm 1 chạm vào nút 💬 hoặc ✕ trên cửa sổ**: Cửa sổ lập tức co lại biến thành **Bong bóng Logo Game nhỏ xíu như Messenger**, tự do di chuyển khắp màn hình, tự động hít vào mép màn hình.
+            - **Ngoài màn hình chính (PiP)**: Bấm nút giữa (▶ / ⏸) để co nhỏ toàn bộ cửa sổ thành đúng 1 Bong bóng Logo Game (1:1) siêu gọn, bấm lại bung to thành cửa sổ game.
             - **Dọn dẹp sạch sẽ 100% credit cũ**.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly hoặc 3uTools.
           files: J2ME-Decade.ipa

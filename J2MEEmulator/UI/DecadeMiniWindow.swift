@@ -16,6 +16,7 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
     var onSwitchTab: (() -> Void)?
     var onRestoreFullScreen: (() -> Void)?
     var onShowMenu: (() -> Void)?
+    var onMinimizeToBubble: (() -> Void)?
 
     // UI Elements
     private let blurBackground = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
@@ -103,6 +104,12 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
         menuBtn.titleLabel?.font = .systemFont(ofSize: 12)
         menuBtn.addTarget(self, action: #selector(menuTapped), for: .touchUpInside)
         btnStack.addArrangedSubview(menuBtn)
+
+        let bubbleBtn = UIButton(type: .system)
+        bubbleBtn.setTitle("💬", for: .normal)
+        bubbleBtn.titleLabel?.font = .systemFont(ofSize: 12)
+        bubbleBtn.addTarget(self, action: #selector(minimizeTapped), for: .touchUpInside)
+        btnStack.addArrangedSubview(bubbleBtn)
 
         let closeBtn = UIButton(type: .system)
         closeBtn.setTitle("✕", for: .normal)
@@ -255,9 +262,22 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
         onShowMenu?()
     }
 
+    @objc private func minimizeTapped() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if let onMin = onMinimizeToBubble {
+            onMin()
+        } else {
+            hide()
+        }
+    }
+
     @objc private func closeTapped() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        hide()
+        if let onMin = onMinimizeToBubble {
+            onMin()
+        } else {
+            hide()
+        }
     }
 
     // MARK: - Gestures

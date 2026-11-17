@@ -177,7 +177,7 @@ final class DecadeFloatingBubble: UIView {
 
     @objc private func handleTap() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        showActionSheetMenu()
+        onToggleMiniWindow?()
     }
 
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {

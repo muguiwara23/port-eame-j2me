@@ -1015,8 +1015,15 @@ class GameViewController: UIViewController {
         }
         DecadeFloatingBubble.shared.onToggleMiniWindow = { [weak self] in
             guard let self = self else { return }
+            DecadeFloatingBubble.shared.hide()
             DecadeMiniWindow.shared.setTabInfo(tabNumber: self.activeTabIndex + 1)
-            DecadeMiniWindow.shared.toggle(in: self.view.window)
+            DecadeMiniWindow.shared.show(in: self.view.window)
+        }
+        DecadeMiniWindow.shared.onMinimizeToBubble = { [weak self] in
+            guard let self = self else { return }
+            DecadeMiniWindow.shared.hide()
+            DecadeFloatingBubble.shared.setGameInfo(name: self.appName, icon: self.appIcon, tabNumber: self.activeTabIndex + 1)
+            DecadeFloatingBubble.shared.show(in: self.view.window)
         }
         DecadeMiniWindow.shared.onTogglePiP = {
             DecadePiPManager.shared.togglePiP()
