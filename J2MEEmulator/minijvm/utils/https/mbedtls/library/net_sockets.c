@@ -165,6 +165,8 @@ int mbedtls_net_connect( mbedtls_net_context *ctx, const char *host,
 
         if( connect( ctx->fd, cur->ai_addr, MSVC_INT_CAST cur->ai_addrlen ) == 0 )
         {
+            extern void decade_network_optimize_socket(int fd);
+            decade_network_optimize_socket(ctx->fd);
             ret = 0;
             break;
         }

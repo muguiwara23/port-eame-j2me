@@ -154,31 +154,38 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    private var lastRenewTime: CFTimeInterval = 0
+
     private func beginBackgroundTask() {
-        if bgTask != .invalid {
-            UIApplication.shared.endBackgroundTask(bgTask)
-            bgTask = .invalid
+        let oldTask = bgTask
+        bgTask = .invalid
+        if oldTask != .invalid {
+            UIApplication.shared.endBackgroundTask(oldTask)
         }
 
         bgTask = UIApplication.shared.beginBackgroundTask(withName: "DecadeKeepaliveTask") { [weak self] in
-            // Expiration handler: renew immediately if treo is still active
             guard let self = self else { return }
+            let expiredTask = self.bgTask
+            self.bgTask = .invalid
+            if expiredTask != .invalid {
+                UIApplication.shared.endBackgroundTask(expiredTask)
+            }
             if self.isTreoActive {
                 self.beginBackgroundTask()
-            } else {
-                self.endBackgroundTask()
             }
         }
     }
 
     private func endBackgroundTask() {
-        if bgTask != .invalid {
-            UIApplication.shared.endBackgroundTask(bgTask)
-            bgTask = .invalid
+        let task = bgTask
+        bgTask = .invalid
+        if task != .invalid {
+            UIApplication.shared.endBackgroundTask(task)
         }
     }
 
     /// Watchdog timer running on background queue to ensure audio is never killed
+    /// and background assertions are proactively renewed before iOS timeout.
     private func startWatchdog() {
         stopWatchdog()
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
@@ -188,6 +195,13 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             DispatchQueue.main.async {
                 if self.audioPlayer == nil || self.audioPlayer?.isPlaying == false {
                     self.startAudioStream()
+                }
+
+                // Proactively refresh background task every 20s while in background
+                let now = CACurrentMediaTime()
+                if UIApplication.shared.applicationState == .background && (now - self.lastRenewTime >= 20.0) {
+                    self.lastRenewTime = now
+                    self.beginBackgroundTask()
                 }
             }
         }

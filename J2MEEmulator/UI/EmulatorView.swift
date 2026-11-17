@@ -146,5 +146,11 @@ func setGlobalEmulatorView(_ view: EmulatorView?) {
 let flushCallback: @convention(c) (UnsafeMutableRawPointer?, Int32, Int32) -> Void = { cgImagePtr, width, height in
     guard let ptr = cgImagePtr else { return }
     let cgImage = Unmanaged<CGImage>.fromOpaque(ptr).takeRetainedValue()
+    if let vc = activeGameViewController, vc.isAppInBackground {
+        if DecadePiPManager.shared.isPiPActive {
+            DecadePiPManager.shared.updateFrame(cgImage)
+        }
+        return
+    }
     globalEmulatorView?.displayImage(cgImage)
 }

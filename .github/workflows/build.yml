@@ -69,17 +69,26 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.8-native
-          name: "Vạn Trần J2ME Native iOS v2.8"
+          tag_name: v2.9-native
+          name: "Vạn Trần J2ME Native iOS v2.9"
           body: |
-            ## Vạn Trần J2ME iOS v2.8 — Native Multi-Tab Engine
+            ## Vạn Trần J2ME iOS v2.9 — Smart Network & Instant Setup Engine
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - **Chuẩn Bong bóng Messenger (Chat Heads) 1-chạm**:
-              - **Bong bóng Logo thuần tuý**: Khi thu nhỏ, chỉ có DUY NHẤT 1 logo game tròn nhỏ nổi trên màn hình (không có khung cửa sổ bao quanh), di chuyển tự do khắp màn hình, tự động hít vào mép như Messenger.
-              - **Chạm 1 chạm vào logo**: Lập tức bung ra Cửa sổ nhỏ tuỳ chỉnh kích thước (kéo góc ◢ hoặc thu phóng 2 ngón tay tuỳ ý).
-              - **Chạm 1 chạm vào thanh tiêu đề hoặc nút 💬 / ✕ trên cửa sổ**: Lập tức ẩn cửa sổ và biến lại thành đúng mỗi cái logo game nhỏ nổi trên màn hình.
-            - **Ngoài màn hình chính (PiP)**: Đã ẩn toàn bộ các nút điều khiển video (Play, tua 10s, thanh tiến trình) của Apple để cửa sổ phát game trực tiếp sạch sẽ.
-            - **Dọn dẹp sạch sẽ 100% credit cũ**.
+            - ⚡ **Cập nhật Thiết lập Setup ngay lập tức**:
+              - Thêm menu **⚙️ Thiết lập & Cài đặt (Áp dụng ngay)** trực tiếp trong game.
+              - Mọi thay đổi cấu hình (kích thước, tỷ lệ, toàn màn hình, bàn phím, độ mờ, ẩn nút, proxy) được lưu và cập nhật trực tiếp vào game đang chạy tức thì mà không cần thoát ra hay khởi động lại!
+              - Cơ chế ghi file và lưu RMS trong Java/J2ME được `fflush` và `fsync` ngay lập tức, đảm bảo lưu cấu hình game, tài khoản và dữ liệu không bị mất.
+            - 🚀 **Tối ưu tốc độ mạng & Up mượt**:
+              - Kích hoạt `TCP_NODELAY` loại bỏ hoàn toàn độ trễ đóng gói (Nagle's delay), gói tin gửi lên máy chủ phản hồi siêu nhạy và mượt mà.
+              - Mở rộng socket buffer lên 64KB, kích hoạt `SO_NOSIGPIPE` chống crash mạng trên iOS.
+            - 📶 **Chuyển mạng thông minh (Smart Network Handover)**:
+              - Tự động phát hiện và chuyển luồng liền mạch giữa **Wi-Fi** và **5G / 4G Dữ liệu di động** (và ngược lại) qua `NWPathMonitor` và `SO_FALLBACK_INTERFACE` của Apple Darwin.
+              - Giữ kết nối game không bị ngắt quãng khi mất sóng Wi-Fi.
+            - 🛡️ **Treo nền tắt màn hình 24/7 không mất kết nối & không bị kill app**:
+              - Sửa triệt để cơ chế gia hạn `beginBackgroundTask`, chống bị iOS watchdog kill app (`0xbaadca11`).
+              - Tự động ngắt render GPU màn hình khi tắt màn hình/khoá máy giúp tiết kiệm 95% CPU, không lo bị iOS Jetsam kill do quá tải tài nguyên.
+              - Luồng âm thanh giữ nhịp chạy nền liên tục với `AVAudioSession` độc quyền và tự phục hồi sau cuộc gọi/thông báo.
+            - 💬 **Bong bóng Messenger Chat Heads & Cửa sổ nổi PiP**: Kéo thả, co giãn tự do, chuyển đổi 1 chạm mượt mà.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly hoặc 3uTools.
           files: J2ME-Decade.ipa
 

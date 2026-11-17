@@ -24,6 +24,10 @@ void decade_proxy_untrack_socket(int slot, int fd);
 /// Disconnect all active sockets for a slot.
 void decade_proxy_disconnect_slot_sockets(int slot);
 
+/// Optimize a socket descriptor with low-latency TCP_NODELAY, keep-alive probes,
+/// SO_NOSIGPIPE, fallback interface and high-throughput buffer sizes.
+void decade_network_optimize_socket(int fd);
+
 #ifdef __cplusplus
 }
 #endif

@@ -10,6 +10,7 @@
 #include "jvm_util.h"
 #include "../utils/miniz_wrapper.h"
 
+extern void decade_network_optimize_socket(int fd);
 
 #ifdef __cplusplus
 extern "C" {
@@ -134,20 +135,15 @@ s32 sock_option(VmSock *vmsock, s32 opType, s32 opValue, s32 opValue2) {
             break;
         }
         case SOCK_OP_TYPE_LINGER: {
-            struct {
-                u16 l_onoff;
-                u16 l_linger;
-            } m_sLinger;
-            // (Allow lingering when closesocket() is called, but there is still data that has not been fully sent)
-            // If m_sLinger.l_onoff = 0, it functions the same as in 2.)
-            m_sLinger.l_onoff = opValue;
-            m_sLinger.l_linger = opValue2;// The allowed lingering time is 5 seconds
-            ret = setsockopt(vmsock->contex.fd, SOL_SOCKET, SO_RCVTIMEO, (const c8 *) &m_sLinger, sizeof(m_sLinger));
+            struct linger m_sLinger;
+            m_sLinger.l_onoff = (u_short)opValue;
+            m_sLinger.l_linger = (u_short)opValue2;
+            ret = setsockopt(vmsock->contex.fd, SOL_SOCKET, SO_LINGER, (const c8 *) &m_sLinger, sizeof(m_sLinger));
             break;
         }
         case SOCK_OP_TYPE_KEEPALIVE: {
             s32 val = opValue;
-            ret = setsockopt(vmsock->contex.fd, SOL_SOCKET, SO_RCVTIMEO, (const c8 *) &val, sizeof(val));
+            ret = setsockopt(vmsock->contex.fd, SOL_SOCKET, SO_KEEPALIVE, (const c8 *) &val, sizeof(val));
             break;
         }
     }
@@ -204,22 +200,16 @@ s32 sock_get_option(VmSock *vmsock, s32 opType) {
             break;
         }
         case SOCK_OP_TYPE_LINGER: {
-            struct {
-                u16 l_onoff;
-                u16 l_linger;
-            } m_sLinger;
-            // (Allow lingering when closesocket() is called, but there is still data that has not been fully sent)
-            // If m_sLinger.l_onoff = 0, it behaves the same as in 2.)
-            m_sLinger.l_onoff = 0;
-            m_sLinger.l_linger = 0;// The allowed lingering time is 5 seconds
+            struct linger m_sLinger;
+            memset(&m_sLinger, 0, sizeof(m_sLinger));
             len = sizeof(m_sLinger);
-            getsockopt(vmsock->contex.fd, SOL_SOCKET, SO_RCVTIMEO, (void *) &m_sLinger, &len);
-            ret = *((s32 *) &m_sLinger);
+            getsockopt(vmsock->contex.fd, SOL_SOCKET, SO_LINGER, (void *) &m_sLinger, &len);
+            ret = m_sLinger.l_onoff ? m_sLinger.l_linger : 0;
             break;
         }
         case SOCK_OP_TYPE_KEEPALIVE: {
             len = sizeof(ret);
-            getsockopt(vmsock->contex.fd, SOL_SOCKET, SO_RCVTIMEO, (void *) &ret, &len);
+            getsockopt(vmsock->contex.fd, SOL_SOCKET, SO_KEEPALIVE, (void *) &ret, &len);
             break;
         }
     }
@@ -375,6 +365,9 @@ s32 org_mini_net_SocketNative_connect0(Runtime *runtime, JClass *clazz) {
         jthread_block_enter(runtime);
         ret = decade_proxy_connect(runtime, ctx, (const char *)host->arr_body, (const char *)port->arr_body, proto);
         jthread_block_exit(runtime);
+        if (ret >= 0 && ctx->fd >= 0) {
+            decade_network_optimize_socket(ctx->fd);
+        }
 #if _JVM_DEBUG_LOG_LEVEL > 5
         invoke_deepth(runtime);
         jvm_printf("org_mini_net_SocketNative_open0  \n");
@@ -838,6 +831,13 @@ s32 org_mini_fs_InnerFile_closeFile(Runtime *runtime, JClass *clazz) {
     FILE *fd = (FILE *) (intptr_t) l2d.l;
     s32 ret = -1;
     if (fd) {
+        fflush(fd);
+#if !defined(_WIN32)
+        int fno = fileno(fd);
+        if (fno >= 0) {
+            fsync(fno);
+        }
+#endif
         ret = fclose(fd);
     }
     push_int(runtime->stack, ret);
@@ -882,6 +882,7 @@ s32 org_mini_fs_InnerFile_write0(Runtime *runtime, JClass *clazz) {
         if (ret == EOF) {
             push_int(runtime->stack, -1);
         } else {
+            fflush(fd);
             push_int(runtime->stack, byte);
         }
     } else {
@@ -934,6 +935,8 @@ s32 org_mini_fs_InnerFile_writebuf(Runtime *runtime, JClass *clazz) {
         ret = (s32) fwrite(bytes_arr->arr_body + offset, 1, len, fd);
         if (ret == 0) {
             ret = -1;
+        } else {
+            fflush(fd);
         }
         push_int(runtime->stack, ret);
     } else {
@@ -1037,6 +1040,12 @@ s32 org_mini_fs_InnerFile_flush0(Runtime *runtime, JClass *clazz) {
     s32 ret = -1;
     if (fd) {
         ret = fflush(fd);
+#if !defined(_WIN32)
+        int fno = fileno(fd);
+        if (fno >= 0) {
+            fsync(fno);
+        }
+#endif
     }
     push_int(runtime->stack, ret);
 #if _JVM_DEBUG_LOG_LEVEL > 5

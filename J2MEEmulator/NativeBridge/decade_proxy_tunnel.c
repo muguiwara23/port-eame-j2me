@@ -7,6 +7,9 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <pthread.h>
 
@@ -15,6 +18,51 @@
 static int g_slot_sockets[JVM_BRIDGE_MAX_SLOTS][MAX_SLOT_SOCKETS];
 static int g_slot_socket_counts[JVM_BRIDGE_MAX_SLOTS] = {0};
 static pthread_mutex_t g_sock_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void decade_network_optimize_socket(int fd) {
+    if (fd < 0) return;
+
+    // 1. TCP_NODELAY: Disable Nagle algorithm for lowest upstream latency (mạng up phản hồi siêu mượt)
+    int nodelay = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const void *)&nodelay, sizeof(nodelay));
+
+    // 2. SO_NOSIGPIPE on Apple/Darwin: Prevent process termination on broken pipe
+#if defined(SO_NOSIGPIPE)
+    int nosigpipe = 1;
+    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, (const void *)&nosigpipe, sizeof(nosigpipe));
+#endif
+
+    // 3. Keep-alive probes: Maintain NAT bindings in 4G/5G/Wi-Fi when idle or in background
+    int keepalive = 1;
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (const void *)&keepalive, sizeof(keepalive));
+
+#if defined(__APPLE__) || defined(__MACH__)
+    // Probe after 15 seconds of idle (default on iOS is 7200 seconds!)
+    int keepidle = 15;
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, (const void *)&keepidle, sizeof(keepidle));
+
+    // Repeat probe every 5 seconds if unacknowledged
+    int keepintvl = 5;
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (const void *)&keepintvl, sizeof(keepintvl));
+
+    // Drop after 4 unacknowledged probes (20 seconds total)
+    int keepcnt = 4;
+    setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (const void *)&keepcnt, sizeof(keepcnt));
+
+    // TCP connection drop time when network changes/drops
+    int drop_time = 10;
+    setsockopt(fd, IPPROTO_TCP, 0x80 /* TCP_RXT_CONNDROPTIME */, &drop_time, sizeof(drop_time));
+
+    // Fallback interface: Darwin automatically traverses between Wi-Fi and Cellular
+    int fallback = 1;
+    setsockopt(fd, SOL_SOCKET, 0x1014 /* SO_FALLBACK_INTERFACE */, &fallback, sizeof(fallback));
+#endif
+
+    // 4. Increase socket buffer sizes to 64KB for smooth data throughput
+    int bufsize = 65536;
+    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (const void *)&bufsize, sizeof(bufsize));
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (const void *)&bufsize, sizeof(bufsize));
+}
 
 static const char b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -35,6 +83,7 @@ static void base64_encode(const unsigned char *src, size_t len, char *out) {
 
 void decade_proxy_track_socket(int slot, int fd) {
     if (slot < 0 || slot >= JVM_BRIDGE_MAX_SLOTS || fd < 0) return;
+    decade_network_optimize_socket(fd);
     pthread_mutex_lock(&g_sock_lock);
     int count = g_slot_socket_counts[slot];
     if (count < MAX_SLOT_SOCKETS) {

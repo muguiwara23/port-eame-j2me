@@ -75,9 +75,11 @@ class DecadeConfigViewController: UIViewController {
             action: #selector(backTapped)
         )
 
-        // "BẮT ĐẦU" (Start) button on right matching Screenshot 3
+        // "BẮT ĐẦU" (Start) or "LƯU & ÁP DỤNG" (Save & Apply) button on right
+        let isEditingInGame = (onStartGame == nil)
+        let rightBtnTitle = isEditingInGame ? "LƯU & ÁP DỤNG" : "BẮT ĐẦU"
         let startBtn = UIBarButtonItem(
-            title: "BẮT ĐẦU",
+            title: rightBtnTitle,
             style: .done,
             target: self,
             action: #selector(startTapped)
@@ -114,9 +116,12 @@ class DecadeConfigViewController: UIViewController {
         let fpsValues = [0, 15, 20, 30, 60]
         let fps = (fpsIdx >= 0 && fpsIdx < fpsValues.count) ? fpsValues[fpsIdx] : 0
 
-        dismiss(animated: true) { [weak self] in
-            guard let self else { return }
-            self.onStartGame?(w, h, fps)
+        if let onStart = onStartGame {
+            dismiss(animated: true) {
+                onStart(w, h, fps)
+            }
+        } else {
+            dismiss(animated: true)
         }
     }
 
@@ -518,6 +523,23 @@ class DecadeConfigViewController: UIViewController {
         defaults.set(alphaSlider.value, forKey: "keypad_alpha_\(gid)")
         defaults.set(fullscreenSwitch.isOn, forKey: "fullscreen_\(gid)")
         defaults.set(showFpsSwitch.isOn, forKey: "show_fps_\(gid)")
+        defaults.synchronize()
+
+        NotificationCenter.default.post(
+            name: NSNotification.Name("DecadeConfigChanged"),
+            object: nil,
+            userInfo: [
+                "gid": gid,
+                "width": w,
+                "height": h,
+                "aspect": aspectSwitch.isOn,
+                "fps": (fpsIdx >= 0 && fpsIdx < fpsValues.count) ? fpsValues[fpsIdx] : 0,
+                "layout": layoutSegment.selectedSegmentIndex,
+                "alpha": alphaSlider.value,
+                "fullscreen": fullscreenSwitch.isOn,
+                "showFps": showFpsSwitch.isOn
+            ]
+        )
     }
 
     private func resetDefaults() {

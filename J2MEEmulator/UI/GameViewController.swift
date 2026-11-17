@@ -46,6 +46,12 @@ class GameViewController: UIViewController {
         DispatchQueue.main.async {
             guard let vc = activeGameViewController,
                   vc.activeTabIndex == slot else { return }
+            if vc.isAppInBackground {
+                if DecadePiPManager.shared.isPiPActive {
+                    DecadePiPManager.shared.updateFrame(image)
+                }
+                return
+            }
             vc.emulatorView.displayImage(image)
             DecadePiPManager.shared.updateFrame(image)
             DecadeMiniWindow.shared.updateFrame(image)
@@ -54,6 +60,8 @@ class GameViewController: UIViewController {
             }
         }
     }
+
+    var isAppInBackground: Bool = false
 
     let emulatorView = EmulatorView()
     private let pipHostView = UIView()
@@ -239,6 +247,35 @@ class GameViewController: UIViewController {
 
         DecadePiPManager.shared.setup(sourceView: pipHostView)
         DecadePiPManager.shared.setGameInfo(name: appName, icon: appIcon, tabNumber: activeTabIndex + 1)
+
+        // Observe app lifecycle for background power & connection preservation
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppBackgroundChange),
+            name: UIApplication.didEnterBackgroundNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppForegroundChange),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+        // Observe live configuration change (instant apply without game restart)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleConfigChanged(_:)),
+            name: NSNotification.Name("DecadeConfigChanged"),
+            object: nil
+        )
+        // Observe smart network transitions (Wi-Fi <-> 5G failover)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleNetworkSwitched(_:)),
+            name: NSNotification.Name("DecadeNetworkSwitched"),
+            object: nil
+        )
+        _ = DecadeNetworkManager.shared // Activate smart network monitor
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -805,7 +842,13 @@ class GameViewController: UIViewController {
 
     @objc private func showMenu() {
         softKeyHaptic.impactOccurred(intensity: 0.6)
-        let alert = UIAlertController(title: "Vạn Trần J2ME Menu", message: "\(appName) — Tab \(activeTabIndex + 1)", preferredStyle: .actionSheet)
+        let currentNet = DecadeNetworkManager.shared.currentNetworkDescription()
+        let alert = UIAlertController(title: "Vạn Trần J2ME Menu", message: "\(appName) — Tab \(activeTabIndex + 1) • Mạng: \(currentNet)", preferredStyle: .actionSheet)
+
+        // 0. Thiết lập & Cài đặt (Áp dụng ngay không cần thoát game)
+        alert.addAction(UIAlertAction(title: "⚙️ Thiết lập & Cài đặt (Áp dụng ngay)", style: .default) { [weak self] _ in
+            self?.openInGameSettings()
+        })
 
         // 1. Thoát midlet (chuẩn APK)
         alert.addAction(UIAlertAction(title: "✕ Thoát game về danh sách", style: .destructive) { [weak self] _ in
@@ -898,6 +941,76 @@ class GameViewController: UIViewController {
         }
 
         present(alert, animated: true)
+    }
+
+    private func openInGameSettings() {
+        let appInfo = AppsListViewController.AppInfo(
+            name: appName,
+            path: jarPath,
+            vendor: "",
+            version: "1.0",
+            icon: appIcon,
+            description: "",
+            sizeFormatted: ""
+        )
+        let configVC = DecadeConfigViewController(app: appInfo, onStart: nil)
+        let nav = UINavigationController(rootViewController: configVC)
+        nav.modalPresentationStyle = .formSheet
+        present(nav, animated: true)
+    }
+
+    @objc private func handleAppBackgroundChange() {
+        isAppInBackground = true
+    }
+
+    @objc private func handleAppForegroundChange() {
+        isAppInBackground = false
+        // Request immediate frame redraw upon unlock
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if let img = GameViewController.slotFrames[self.activeTabIndex] {
+                self.emulatorView.displayImage(img)
+            }
+        }
+    }
+
+    @objc private func handleNetworkSwitched(_ notif: Notification) {
+        if let msg = notif.userInfo?["message"] as? String {
+            showToast(message: msg)
+        }
+    }
+
+    @objc private func handleConfigChanged(_ notif: Notification) {
+        // Immediate live reload of settings without restarting game!
+        let isForceFullscreen = isForceFullscreenEnabled
+        emulatorView.isAspectFit = isForceFullscreen ? false : isAspectFitEnabled
+
+        let savedLayout = (UserDefaults.standard.object(forKey: "keypad_layout_\(currentGameId)") as? Int) ??
+                          (UserDefaults.standard.object(forKey: "keypad_layout_\(legacyGameId)") as? Int)
+        if savedLayout == 1 {
+            decadeKeypadView?.currentLayout = .numpad
+        } else if savedLayout == 2 {
+            decadeKeypadView?.currentLayout = .compactPhone
+        } else {
+            decadeKeypadView?.currentLayout = .arrows
+        }
+
+        let savedAlpha = (UserDefaults.standard.object(forKey: "keypad_alpha_\(currentGameId)") as? Float) ??
+                         (UserDefaults.standard.object(forKey: "keypad_alpha_\(legacyGameId)") as? Float) ?? 64.0
+        decadeKeypadView?.keypadAlphaValue = CGFloat(savedAlpha / 255.0)
+
+        if isForceFullscreen {
+            isKeypadHidden = true
+            decadeKeypadView?.isHidden = true
+            floatingShowKeypadBtn.isHidden = true
+            keypadHeightConstraint?.constant = 0
+        } else {
+            updateKeypadVisibility()
+        }
+
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+        showToast(message: "✅ Đã lưu và cập nhật thiết lập ngay lập tức!")
     }
 
     private func isCurrentOrientationLandscape() -> Bool {
