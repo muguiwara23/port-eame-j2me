@@ -206,7 +206,7 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
             allocator: kCFAllocatorDefault,
             imageBuffer: buffer,
             formatDescription: format,
-            sampleTimingInfo: &timing,
+            sampleTiming: &timing,
             sampleBufferOut: &sampleBuffer
         )
         guard sStatus == noErr else { return nil }
