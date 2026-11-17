@@ -239,6 +239,11 @@ class GameViewController: UIViewController {
         startGame()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        DecadePiPManager.shared.updateLayout()
+    }
+
     // ============================================================
     // MARK: - Decade 1:1 Authentic Portrait Layout
     // ============================================================
@@ -1039,10 +1044,12 @@ class GameViewController: UIViewController {
             setupFloatingBubble()
             DecadeFloatingBubble.shared.show(in: view.window)
             view.window?.bringSubviewToFront(DecadeFloatingBubble.shared)
-            showToast(message: "Đã bật treo tắt màn & bong bóng chạy ngầm")
+            DecadePiPManager.shared.startPiP()
+            showToast(message: "Đã bật treo & Cửa sổ nổi PiP ngoài màn hình")
         } else {
             dismissOledBlackOverlay()
             DecadeFloatingBubble.shared.hide()
+            DecadePiPManager.shared.stopPiP()
             showToast(message: "Đã tắt treo tắt màn")
         }
     }

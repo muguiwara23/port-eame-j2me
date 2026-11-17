@@ -3,44 +3,28 @@
 //  J2MEEmulator
 //
 //  Created for Vạn Trần idol J2me NSV IOS
-//  Picture-in-Picture manager allowing J2ME gameplay to float over other apps and SpringBoard outside the app.
+//  Picture-in-Picture (PiP) manager with AVSampleBufferDisplayLayer.
+//  Enables live game video floating outside the app over Home Screen and other apps.
+//  Supports dragging anywhere and pinch-to-resize freely ("kéo to nhỏ tuỳ ý ngoài màn hình").
 //
 
 import UIKit
 import AVKit
+import AVFoundation
+import CoreMedia
+import VideoToolbox
 
-@available(iOS 15.0, *)
-final class J2MEPiPVideoCallViewController: AVPictureInPictureVideoCallViewController {
-    let canvasImageView = UIImageView()
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .black
-        canvasImageView.translatesAutoresizingMaskIntoConstraints = false
-        canvasImageView.contentMode = .scaleAspectFit
-        canvasImageView.layer.magnificationFilter = .nearest
-        canvasImageView.layer.minificationFilter = .nearest
-        view.addSubview(canvasImageView)
-
-        NSLayoutConstraint.activate([
-            canvasImageView.topAnchor.constraint(equalTo: view.topAnchor),
-            canvasImageView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            canvasImageView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            canvasImageView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        ])
-    }
-
-    func updateImage(_ cgImage: CGImage) {
-        canvasImageView.layer.contents = cgImage
-    }
-}
-
-final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate {
+final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AVPictureInPictureSampleBufferPlaybackDelegate {
     static let shared = DecadePiPManager()
 
     private var pipController: AVPictureInPictureController?
-    private var pipVideoCallVC: AnyObject? // J2MEPiPVideoCallViewController on iOS 15+
-    private weak var currentSourceView: UIView?
+    let displayLayer = AVSampleBufferDisplayLayer()
+    private weak var sourceView: UIView?
+
+    private var pixelBufferPool: CVPixelBufferPool?
+    private var lastPoolSize: CGSize = .zero
+    private var lastFrameTime: CFTimeInterval = 0
+    private var hasEnqueuedInitialFrame = false
 
     var isPiPActive: Bool {
         return pipController?.isPictureInPictureActive ?? false
@@ -53,13 +37,13 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate {
         setupAudioSession()
     }
 
-    private func setupAudioSession() {
+    func setupAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
             try session.setActive(true)
         } catch {
-            print("[PiP] AudioSession setup error: \(error)")
+            print("[PiP] AudioSession error: \(error)")
         }
     }
 
@@ -69,30 +53,39 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate {
             return
         }
 
-        self.currentSourceView = sourceView
+        self.sourceView = sourceView
 
-        if #available(iOS 15.0, *) {
-            let callVC = J2MEPiPVideoCallViewController()
-            callVC.preferredContentSize = CGSize(width: 320, height: 240)
-            self.pipVideoCallVC = callVC
+        // Setup display layer
+        displayLayer.videoGravity = .resizeAspect
+        displayLayer.isOpaque = true
+        displayLayer.frame = sourceView.bounds
 
-            let contentSource = AVPictureInPictureController.ContentSource(
-                activeVideoCallSourceView: sourceView,
-                contentViewController: callVC
-            )
-
-            let controller = AVPictureInPictureController(contentSource: contentSource)
-            controller.delegate = self
-            controller.canStartPictureInPictureAutomaticallyFromInline = true
-            self.pipController = controller
-            print("[PiP] Setup completed successfully")
+        if displayLayer.superlayer == nil {
+            sourceView.layer.insertSublayer(displayLayer, at: 0)
         }
+
+        // Setup PiP Controller with ContentSource(sampleBufferDisplayLayer:playbackDelegate:)
+        let contentSource = AVPictureInPictureController.ContentSource(
+            sampleBufferDisplayLayer: displayLayer,
+            playbackDelegate: self
+        )
+
+        let controller = AVPictureInPictureController(contentSource: contentSource)
+        controller.delegate = self
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        self.pipController = controller
+        print("[PiP] Setup completed with AVSampleBufferDisplayLayer")
+    }
+
+    func updateLayout() {
+        guard let sourceView = sourceView else { return }
+        displayLayer.frame = sourceView.bounds
     }
 
     func startPiP() {
         setupAudioSession()
         guard let controller = pipController else {
-            print("[PiP] pipController is nil")
+            print("[PiP] Controller is nil")
             return
         }
         if !controller.isPictureInPictureActive {
@@ -114,14 +107,146 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate {
         }
     }
 
+    // MARK: - Frame Enqueueing
     func updateFrame(_ cgImage: CGImage) {
-        if #available(iOS 15.0, *) {
-            if let vc = pipVideoCallVC as? J2MEPiPVideoCallViewController {
-                DispatchQueue.main.async {
-                    vc.updateImage(cgImage)
-                }
+        let now = CACurrentMediaTime()
+        // Ensure at least 1 initial frame is sent so PiP can start, then throttle to 30 FPS
+        if hasEnqueuedInitialFrame {
+            guard (now - lastFrameTime) >= 0.033 else { return }
+        }
+        lastFrameTime = now
+        hasEnqueuedInitialFrame = true
+
+        guard let sampleBuffer = createSampleBuffer(from: cgImage) else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if self.displayLayer.status == .failed {
+                self.displayLayer.flush()
+            }
+            if self.displayLayer.isReadyForMoreMediaData {
+                self.displayLayer.enqueue(sampleBuffer)
             }
         }
+    }
+
+    private func getPixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
+        let currentSize = CGSize(width: width, height: height)
+        if pixelBufferPool == nil || lastPoolSize != currentSize {
+            pixelBufferPool = nil
+            lastPoolSize = currentSize
+
+            let poolAttrs: [CFString: Any] = [
+                kCVPixelBufferPoolMinimumBufferCountKey: 3
+            ]
+            let bufferAttrs: [CFString: Any] = [
+                kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey: width,
+                kCVPixelBufferHeightKey: height,
+                kCVPixelBufferIOSurfacePropertiesKey: [:] as [String: Any],
+                kCVPixelBufferCGImageCompatibilityKey: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey: true
+            ]
+            CVPixelBufferPoolCreate(
+                kCFAllocatorDefault,
+                poolAttrs as CFDictionary,
+                bufferAttrs as CFDictionary,
+                &pixelBufferPool
+            )
+        }
+
+        guard let pool = pixelBufferPool else { return nil }
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pixelBuffer)
+        guard status == kCVReturnSuccess else { return nil }
+        return pixelBuffer
+    }
+
+    private func createSampleBuffer(from cgImage: CGImage) -> CMSampleBuffer? {
+        let w = cgImage.width
+        let h = cgImage.height
+        guard let buffer = getPixelBuffer(width: w, height: h) else { return nil }
+
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(buffer) else { return nil }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        guard let context = CGContext(
+            data: baseAddress,
+            width: w,
+            height: h,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { return nil }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: w, height: h))
+
+        var formatDesc: CMVideoFormatDescription?
+        let vStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: buffer,
+            formatDescriptionOut: &formatDesc
+        )
+        guard vStatus == noErr, let format = formatDesc else { return nil }
+
+        let now = CMTime(seconds: CACurrentMediaTime(), preferredTimescale: 600)
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: 1, timescale: 30),
+            presentationTimeStamp: now,
+            decodeTimeStamp: .invalid
+        )
+
+        var sampleBuffer: CMSampleBuffer?
+        let sStatus = CMSampleBufferCreateReadyWithImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: buffer,
+            formatDescription: format,
+            sampleTimingInfo: &timing,
+            sampleBufferOut: &sampleBuffer
+        )
+        guard sStatus == noErr else { return nil }
+        return sampleBuffer
+    }
+
+    // MARK: - AVPictureInPictureSampleBufferPlaybackDelegate
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        setPlaying playing: Bool
+    ) {
+        // Handle play/pause
+    }
+
+    func pictureInPictureControllerTimeRangeForPlayback(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) -> CMTimeRange {
+        // Infinite duration prevents loading indicator on game stream
+        return CMTimeRange(start: .zero, duration: .positiveInfinity)
+    }
+
+    func pictureInPictureControllerIsPlaybackPaused(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) -> Bool {
+        return false
+    }
+
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        didTransitionToRenderSize newRenderSize: CMVideoDimensions
+    ) {
+        // Called when user pinches/resizes PiP window on home screen
+    }
+
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        skipByInterval skipInterval: CMTime,
+        completion completionHandler: @escaping () -> Void
+    ) {
+        completionHandler()
     }
 
     // MARK: - AVPictureInPictureControllerDelegate
@@ -140,5 +265,12 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate {
     func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
         print("[PiP] Failed: \(error.localizedDescription)")
         onPiPStateChanged?(false)
+    }
+
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+        completionHandler(true)
     }
 }
