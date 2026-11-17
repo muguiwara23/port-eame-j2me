@@ -47,6 +47,8 @@ class GameViewController: UIViewController {
             guard let vc = activeGameViewController,
                   vc.activeTabIndex == slot else { return }
             vc.emulatorView.displayImage(image)
+            DecadePiPManager.shared.updateFrame(image)
+            DecadeMiniWindow.shared.updateFrame(image)
             if let icon = vc.placeholderIconView, icon.alpha > 0 {
                 UIView.animate(withDuration: 0.15) { icon.alpha = 0 }
             }
@@ -227,6 +229,9 @@ class GameViewController: UIViewController {
         j2me_render_set_slot_flush_callback(slotFlushCallback)
         j2me_ui_set_callback(gameUICallback)
         activeGameViewController = self
+
+        // Setup Picture-in-Picture
+        DecadePiPManager.shared.setup(sourceView: emulatorView)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -554,6 +559,7 @@ class GameViewController: UIViewController {
         appName = session.appName
         jarPath = session.jarPath
         DecadeFloatingBubble.shared.setGameInfo(name: session.appName, icon: appIcon, tabNumber: index + 1)
+        DecadeMiniWindow.shared.setTabInfo(tabNumber: index + 1)
         if let icon = session.icon {
             appIcon = icon
         }
@@ -785,7 +791,7 @@ class GameViewController: UIViewController {
 
     @objc private func showMenu() {
         softKeyHaptic.impactOccurred(intensity: 0.6)
-        let alert = UIAlertController(title: "KamenRider Decade Menu", message: "\(appName) — Tab \(activeTabIndex + 1)", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Vạn Trần J2ME Menu", message: "\(appName) — Tab \(activeTabIndex + 1)", preferredStyle: .actionSheet)
 
         // 1. Thoát midlet (chuẩn APK)
         alert.addAction(UIAlertAction(title: "✕ Thoát game về danh sách", style: .destructive) { [weak self] _ in
@@ -798,7 +804,19 @@ class GameViewController: UIViewController {
             self?.toggleTreoTatMan()
         })
 
-        // 3. Xoay màn hình (Xoay ngang / Xoay dọc)
+        // 3. Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)
+        alert.addAction(UIAlertAction(title: "📺 Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)", style: .default) { _ in
+            DecadePiPManager.shared.togglePiP()
+        })
+
+        // 4. Cửa sổ màn hình nhỏ kéo to nhỏ tuỳ ý
+        alert.addAction(UIAlertAction(title: "🪟 Cửa sổ màn hình nhỏ (Kéo to nhỏ tuỳ ý)", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            DecadeMiniWindow.shared.setTabInfo(tabNumber: self.activeTabIndex + 1)
+            DecadeMiniWindow.shared.toggle(in: self.view.window)
+        })
+
+        // 5. Xoay màn hình (Xoay ngang / Xoay dọc)
         let isLandscape = isCurrentOrientationLandscape()
         let rotateTitle = isLandscape ? "🔄 Xoay dọc" : "🔄 Xoay ngang"
         alert.addAction(UIAlertAction(title: rotateTitle, style: .default) { [weak self] _ in
@@ -977,6 +995,22 @@ class GameViewController: UIViewController {
         }
         DecadeFloatingBubble.shared.onToggleTreo = { [weak self] in
             self?.toggleTreoTatMan()
+        }
+        DecadeFloatingBubble.shared.onTogglePiP = {
+            DecadePiPManager.shared.togglePiP()
+        }
+        DecadeFloatingBubble.shared.onToggleMiniWindow = { [weak self] in
+            guard let self = self else { return }
+            DecadeMiniWindow.shared.setTabInfo(tabNumber: self.activeTabIndex + 1)
+            DecadeMiniWindow.shared.toggle(in: self.view.window)
+        }
+        DecadeMiniWindow.shared.onTogglePiP = {
+            DecadePiPManager.shared.togglePiP()
+        }
+        DecadeMiniWindow.shared.onSwitchTab = { [weak self] in
+            guard let self = self, self.tabButtons.count > 1 else { return }
+            let nextTab = (self.activeTabIndex + 1) % self.tabButtons.count
+            self.selectTab(at: nextTab)
         }
     }
 
@@ -1689,6 +1723,8 @@ class GameViewController: UIViewController {
         autoShutdownTimer?.invalidate()
         autoShutdownTimer = nil
         DecadeFloatingBubble.shared.hide()
+        DecadeMiniWindow.shared.hide()
+        DecadePiPManager.shared.stopPiP()
         DecadeBackgroundKeeper.shared.setTreoActive(false)
         UIApplication.shared.isIdleTimerDisabled = false
 

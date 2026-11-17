@@ -69,15 +69,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.0-native
-          name: "J2ME Decade Native iOS v2.0"
+          tag_name: v2.1-native
+          name: "Vạn Trần J2ME Native iOS v2.1"
           body: |
-            ## J2ME Decade iOS v2.0 - Native C/Swift Engine
-            - **Sửa giao diện ChoiceGroup (Dạng nút chọn Radio/Checkbox)**: Khắc phục hoàn toàn lỗi hiển thị dạng ô chữ "1 Bật Tắt 0,1". Các tùy chọn hiển thị dạng nút tròn radio và checkbox trực quan 100% như Android.
-            - **Tích hợp Bong bóng nổi Popup (AssistiveTouch Floating Bubble)**: Tự động hiển thị khi bật Chạy nền / Treo tắt màn, có thể kéo thả di chuyển, chạm vào để mở Menu nhanh (Quay lại game, Màn đen tiết kiệm pin, Chuyển tab, Gán proxy, Dừng treo).
-            - **Nhân máy ảo Java thuần Native (miniJVM + J2ME-Loader C/Swift port)**: chạy trực tiếp bytecode trên CPU iOS, 60 FPS mượt mà.
-            - **100% Hoàn toàn Miễn phí & Độc lập**: Không có bất kỳ license, không giới hạn trial 2 tiếng, không thu phí tháng.
-            - **Hỗ trợ kết nối mạng Socket TCP Native**: chơi online Ninja School mượt mà.
+            ## Vạn Trần J2ME iOS v2.1 — Native Multi-Tab Engine
+            - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
+            - **Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)**: Cho phép hiển thị game trực tiếp đè lên mọi ứng dụng khác (Facebook, Safari, TikTok, Messenger...) hoặc màn hình chính ngoài Home Screen. Người dùng có thể di chuyển và thu phóng tự do.
+            - **Cửa sổ màn hình nhỏ kéo to nhỏ tuỳ ý (Mini Window)**: Cửa sổ nổi mini bên trong ứng dụng, cho phép dùng 2 ngón tay thu phóng (pinch) hoặc kéo tay cầm góc dưới bên phải để phóng to / thu nhỏ kích thước tuỳ thích.
+            - **Bong bóng nổi AssistiveTouch Popup**: Di chuyển tự do trên màn hình, chạm vào để mở Menu nhanh (Quay lại game, Bật PiP ra ngoài, Mở cửa sổ nhỏ, Màn hình đen OLED tiết kiệm pin, Chuyển tab, Gán proxy).
+            - **Sửa giao diện ChoiceGroup (Dạng nút chọn Radio/Checkbox)**: Khắc phục triệt để lỗi hiện chuỗi chữ "1 Bật Tắt 0,1".
+            - **Dọn dẹp sạch sẽ toàn bộ thông tin credit cũ**.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi dùng Sideloadly hoặc 3uTools để cài lên iPhone.
           files: J2ME-Decade.ipa
 

@@ -17,6 +17,7 @@ final class DecadeFloatingBubble: UIView {
     var onToggleHeadless: (() -> Void)?
     var onSelectTabPrompt: (() -> Void)?
     var onTogglePiP: (() -> Void)?
+    var onToggleMiniWindow: (() -> Void)?
 
     private let bubbleImageView = UIImageView()
     private let badgeLabel = UILabel()
@@ -177,7 +178,7 @@ final class DecadeFloatingBubble: UIView {
         guard let parentVC = self.topMostPresentedViewController else { return }
 
         let alert = UIAlertController(
-            title: "⚡ J2ME - Đang chạy nền",
+            title: "⚡ Vạn Trần J2ME — Đang chạy nền",
             message: "\(gameName) — Tab \(currentTab)",
             preferredStyle: .actionSheet
         )
@@ -187,22 +188,32 @@ final class DecadeFloatingBubble: UIView {
             self?.onRestoreGame?()
         })
 
-        // 2. Toggle Headless / Black Screen
+        // 2. PiP outside overlay over other apps
+        alert.addAction(UIAlertAction(title: "📺 Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)", style: .default) { [weak self] _ in
+            self?.onTogglePiP?()
+        })
+
+        // 3. In-app resizable floating mini-window
+        alert.addAction(UIAlertAction(title: "🪟 Cửa sổ màn hình nhỏ (Kéo to nhỏ tuỳ ý)", style: .default) { [weak self] _ in
+            self?.onToggleMiniWindow?()
+        })
+
+        // 4. Toggle Headless / Black Screen
         alert.addAction(UIAlertAction(title: "🌙 Bật / Tắt màn đen tiết kiệm pin", style: .default) { [weak self] _ in
             self?.onToggleHeadless?()
         })
 
-        // 3. Switch Tab
+        // 5. Switch Tab
         alert.addAction(UIAlertAction(title: "📑 Chuyển Tab Midlet", style: .default) { [weak self] _ in
             self?.onSelectTabPrompt?()
         })
 
-        // 4. Assign Proxy
+        // 6. Assign Proxy
         alert.addAction(UIAlertAction(title: "🌐 Cấu hình Proxy Tab", style: .default) { [weak self] _ in
             self?.onAssignProxy?()
         })
 
-        // 5. Turn off Keepalive / Treo
+        // 7. Turn off Keepalive / Treo
         alert.addAction(UIAlertAction(title: "🛑 Tắt chạy nền (Dừng treo)", style: .destructive) { [weak self] _ in
             self?.onToggleTreo?()
         })

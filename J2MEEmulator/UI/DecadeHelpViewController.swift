@@ -91,6 +91,16 @@ class DecadeHelpViewController: UIViewController {
             title: "6. Quản lý Proxy & Thay IP máy chủ",
             content: "• Vào menu 3 chấm [⋮] ở màn hình chính ngoài danh sách game.\n• 'Quản lý Proxy': Kết nối mạng J2ME qua proxy HTTP / SOCKS5.\n• 'Thay IP Phiên Bản': Đổi IP server game sang máy chủ private tùy ý."
         ))
+
+        stack.addArrangedSubview(makeSectionCard(
+            title: "7. Cửa sổ nổi PiP ngoài màn hình & Cửa sổ nhỏ thu phóng",
+            content: "• Cửa sổ nổi ngoài màn hình (PiP): Tự động hiện khi chuyển ứng dụng hoặc chọn trong menu. Có thể xem game chạy trực tiếp khi đang ở màn hình chính hoặc lướt Facebook, TikTok, Safari.\n• Cửa sổ nhỏ kéo to nhỏ tuỳ ý (Mini Window): Cửa sổ mini trong ứng dụng, có thể dùng 2 ngón tay kéo to nhỏ (pinch) hoặc kéo góc dưới bên phải để chỉnh kích thước tuỳ thích."
+        ))
+
+        stack.addArrangedSubview(makeSectionCard(
+            title: "8. Thông tin tác giả",
+            content: "• Tác giả: Vạn Trần idol J2me NSV IOS\n• Phiên bản: J2ME Decade iOS v2.0 Native\n• Tính năng nổi bật: Chơi và treo nhiều nick Ninja School Online (NSO), hỗ trợ chạy nền, PiP ngoài màn hình đè ứng dụng khác, cửa sổ nhỏ kéo to nhỏ tuỳ ý."
+        ))
     }
 
     private func makeSectionCard(title: String, content: String) -> UIView {
