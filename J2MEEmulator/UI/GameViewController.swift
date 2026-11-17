@@ -934,11 +934,16 @@ class GameViewController: UIViewController {
 
     private func restartGameSession() {
         showToast(message: "Đang khởi động lại game...")
+        let slot = Int32(self.activeTabIndex)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            jvm_bridge_stop_slot(Int32(self.activeTabIndex))
-            Thread.sleep(forTimeInterval: 0.3)
-            self.startGame()
+            jvm_bridge_request_stop_slot(slot)
+            Thread.sleep(forTimeInterval: 0.35)
+            jvm_bridge_destroy_slot(slot)
+            Thread.sleep(forTimeInterval: 0.15)
+            DispatchQueue.main.async {
+                self.startGame()
+            }
         }
     }
 

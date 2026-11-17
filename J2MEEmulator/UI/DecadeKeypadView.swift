@@ -456,6 +456,13 @@ class DecadeKeypadView: UIView, UIGestureRecognizerDelegate {
         isEditLayoutMode.toggle()
     }
 
+    func finishEditingLayout() {
+        isEditLayoutMode = false
+        isResizeLayoutMode = false
+        UserDefaults.standard.set(customFrames, forKey: "custom_frames_\(gameId)")
+        UserDefaults.standard.synchronize()
+    }
+
     private func updateEditModeAppearance() {
         for btn in buttons {
             if isEditLayoutMode || isResizeLayoutMode {
