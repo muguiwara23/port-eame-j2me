@@ -489,7 +489,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         let content = UNMutableNotificationContent()
         content.title = "🎮 \(currentGameName)"
         content.subtitle = "Đang chạy nền"
-        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpuPercent))%   •   Tab: \(tabs)\nCập nhật \(timeString)"
+        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Tab: \(tabs)\nCập nhật \(timeString)"
         content.sound = nil // Hoàn toàn êm ái, không rung, không phát tiếng làm phiền
 
         let tempDir = FileManager.default.temporaryDirectory
