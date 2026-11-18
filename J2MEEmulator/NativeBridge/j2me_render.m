@@ -411,9 +411,10 @@ static s32 n_flushToScreen(Runtime *runtime, JClass *clazz) {
     process_dead_shells();
 
     if (atomic_load_explicit(&g_is_background, memory_order_relaxed)) {
-        // In background / screen-off mode: skip CGBitmapContextCreateImage completely
-        // and pace loop gently (~16 ticks/sec) so wakeups < 30/s & CPU < 5% (never hits iOS EXC_RESOURCE)!
+        // In background / screen-off mode: mark thread blocking so MiniJVM GC never stalls!
+        jthread_block_enter(runtime);
         usleep(60000);
+        jthread_block_exit(runtime);
         return RUNTIME_STATUS_NORMAL;
     }
 
@@ -640,6 +641,45 @@ static s32 n_drawRoundRect(Runtime *runtime, JClass *clazz) {
 
 // --- Text ---
 
+// Static CoreText font cache (3 sizes x 5 styles) — eliminates 300+ CTFontCreateWithName/sec!
+static CTFontRef g_font_cache[3][5] = {{0}};
+static spinlock_t g_font_cache_lock = {0, 0, 0};
+
+static CTFontRef getCachedFont(s32 face, s32 style, s32 size, CGFloat *outPtSize) {
+    int sizeIdx = 1;
+    CGFloat ptSize = 14.0;
+    switch (size) {
+        case 8:  sizeIdx = 0; ptSize = 10.0; break;
+        case 0:  sizeIdx = 1; ptSize = 14.0; break;
+        case 16: sizeIdx = 2; ptSize = 18.0; break;
+        default: sizeIdx = 1; ptSize = 14.0; break;
+    }
+    if (outPtSize) *outPtSize = ptSize;
+
+    int styleIdx = 0;
+    CFStringRef fontName = CFSTR("Helvetica");
+    if (style & 1) {
+        if (style & 2) { styleIdx = 3; fontName = CFSTR("Helvetica-BoldOblique"); }
+        else           { styleIdx = 1; fontName = CFSTR("Helvetica-Bold"); }
+    } else if (style & 2) {
+        styleIdx = 2; fontName = CFSTR("Helvetica-Oblique");
+    } else if (face == 32) {
+        styleIdx = 4; fontName = CFSTR("Courier");
+    }
+
+    CTFontRef cached = g_font_cache[sizeIdx][styleIdx];
+    if (!cached) {
+        spin_lock(&g_font_cache_lock);
+        cached = g_font_cache[sizeIdx][styleIdx];
+        if (!cached) {
+            cached = CTFontCreateWithName(fontName, ptSize, NULL);
+            g_font_cache[sizeIdx][styleIdx] = cached;
+        }
+        spin_unlock(&g_font_cache_lock);
+    }
+    return cached;
+}
+
 static s32 n_setFont(Runtime *runtime, JClass *clazz) {
     JniEnv *env = runtime->jnienv;
     s64 handle = env->localvar_getLong_2slot(runtime->localvar, 0);
@@ -648,30 +688,15 @@ static s32 n_setFont(Runtime *runtime, JClass *clazz) {
     s32 size = env->localvar_getInt(runtime->localvar, 4);
     RenderContext *rc = rc_acquire(handle);
     if (rc) {
-        CGFloat ptSize;
-        switch (size) {
-            case 8:  ptSize = 10.0; break;
-            case 0:  ptSize = 14.0; break;
-            case 16: ptSize = 18.0; break;
-            default: ptSize = 14.0; break;
+        CGFloat ptSize = 14.0;
+        CTFontRef cachedFont = getCachedFont(face, style, size, &ptSize);
+        if (cachedFont && rc->font != cachedFont) {
+            CFRetain(cachedFont);
+            CTFontRef oldFont = __atomic_exchange_n(&rc->font, cachedFont, __ATOMIC_ACQ_REL);
+            rc->fontSize = ptSize;
+            rc->fontStyle = style;
+            if (oldFont) CFRelease(oldFont);
         }
-
-        CFStringRef fontName;
-        if (style & 1) {
-            if (style & 2) fontName = CFSTR("Helvetica-BoldOblique");
-            else fontName = CFSTR("Helvetica-Bold");
-        } else if (style & 2) {
-            fontName = CFSTR("Helvetica-Oblique");
-        } else {
-            if (face == 32) fontName = CFSTR("Courier");
-            else fontName = CFSTR("Helvetica");
-        }
-
-        CTFontRef newFont = CTFontCreateWithName(fontName, ptSize, NULL);
-        CTFontRef oldFont = __atomic_exchange_n(&rc->font, newFont, __ATOMIC_ACQ_REL);
-        rc->fontSize = ptSize;
-        rc->fontStyle = style;
-        if (oldFont) CFRelease(oldFont);
     }
     rc_release(rc);
     return RUNTIME_STATUS_NORMAL;

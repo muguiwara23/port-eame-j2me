@@ -429,6 +429,7 @@ s64 _garbage_collect(GcCollector *collector) {
         if (_gc_pause_the_world(jvm) != 0) {
             _gc_resume_the_world(jvm);
             vm_share_unlock(jvm);
+            collector->isgc = 0;
             jvm_printf("[WARN] GC canceled - failed to pause the world\n");
             return -1;
         }
@@ -631,6 +632,7 @@ s32 _gc_pause_the_world(MiniJVM *jvm) {
             for (i = 0; i < thread_list->length; i++) {
                 Runtime *runtime = arraylist_get_value(thread_list, i);
                 if (_gc_wait_thread_suspend(jvm, runtime) == -1) {
+                    spin_unlock(&thread_list->spinlock);
                     return -1;
                 }
                 gc_move_objs_thread_2_gc(runtime);

@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <ctype.h>
+#include <unistd.h>
 #if defined(__APPLE__) || defined(__MACH__)
 #include <mach/mach.h>
 #include <malloc/malloc.h>
@@ -619,7 +620,8 @@ double jvm_bridge_get_cpu_usage_percent(void) {
 #if defined(__APPLE__) || defined(__MACH__)
     thread_act_array_t thread_list = NULL;
     mach_msg_type_number_t thread_count = 0;
-    kern_return_t kr = task_threads(mach_task_self(), &thread_list, &thread_count);
+    task_t self_task = mach_task_self();
+    kern_return_t kr = task_threads(self_task, &thread_list, &thread_count);
     if (kr != KERN_SUCCESS || !thread_list) {
         return 0.0;
     }
@@ -635,9 +637,16 @@ double jvm_bridge_get_cpu_usage_percent(void) {
                 total_cpu += (double)basic_info->cpu_usage / (double)TH_USAGE_SCALE * 100.0;
             }
         }
+        // CRITICAL: Release Mach send right for every thread port to prevent kernel port leak!
+        mach_port_deallocate(self_task, thread_list[i]);
     }
 
-    vm_deallocate(mach_task_self(), (vm_offset_t)thread_list, thread_count * sizeof(thread_t));
+    vm_deallocate(self_task, (vm_offset_t)thread_list, thread_count * sizeof(thread_t));
+
+    long cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (cores > 1) {
+        total_cpu /= (double)cores;
+    }
     return total_cpu;
 #else
     return 0.0;

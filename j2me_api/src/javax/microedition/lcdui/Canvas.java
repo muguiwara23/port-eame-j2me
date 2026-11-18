@@ -55,11 +55,12 @@ public abstract class Canvas extends Displayable {
     private final Object paintLock = new Object();
 
     // FPS limiting (matches J2ME-Loader's Canvas.limitFps)
-    private static int fpsLimit;
+    private static int fpsLimit = 30;
     private long lastFrameTime = System.currentTimeMillis();
+    private long lastBackgroundPaintTime = 0;
 
     public static void setLimitFps(int fps) {
-        Canvas.fpsLimit = fps;
+        Canvas.fpsLimit = fps > 0 ? fps : 30;
     }
 
     public static int getLimitFps() {
@@ -67,9 +68,9 @@ public abstract class Canvas extends Displayable {
     }
 
     private void limitFps() {
-        if (fpsLimit <= 0) return;
+        int effectiveFps = fpsLimit > 0 ? fpsLimit : 30;
         try {
-            long millis = (1000 / fpsLimit) - (System.currentTimeMillis() - lastFrameTime);
+            long millis = (1000 / effectiveFps) - (System.currentTimeMillis() - lastFrameTime);
             if (millis > 0) Thread.sleep(millis);
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -184,6 +185,21 @@ public abstract class Canvas extends Displayable {
      */
     public void doPaint() {
         if (!isShown()) return;
+        boolean inBg = false;
+        try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
+        if (inBg) {
+            repaintPending = false;
+            long now = System.currentTimeMillis();
+            if (now - lastBackgroundPaintTime < 2000L) {
+                // Skip Java paint() bytecode & temporary String/Object churn while screen is locked!
+                // Game update(), auto-farm, skills & TCP socket threads still run at 100% full speed.
+                if (nativeContext != 0) {
+                    NativeBridge.flushToScreen(nativeContext);
+                }
+                return;
+            }
+            lastBackgroundPaintTime = now;
+        }
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             repaintPending = false;
