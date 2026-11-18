@@ -344,7 +344,7 @@ class DecadeKeypadView: UIView, UIGestureRecognizerDelegate {
     }
 
     // ============================================================
-    // MARK: - Key Press Handling
+    // MARK: - Key Press Handling (Standard J2ME MIDP 2.0 Spec)
     // ============================================================
 
     @objc private func buttonDown(_ sender: DecadeKeyButton) {
@@ -358,11 +358,19 @@ class DecadeKeypadView: UIView, UIGestureRecognizerDelegate {
             sender.alpha = 0.82
         }
 
-        sendKey(pressed: true)
+        // Send KEY_PRESSED ONCE (never duplicate KEY_PRESSED on hold!)
+        postKey(type: Int32(J2ME_INPUT_KEY_PRESSED), c1: sender.c1, c2: sender.c2)
 
+        // Standard J2ME hardware repeat: wait 0.35s initial delay, then emit KEY_REPEATED every 0.10s
         repeatTimer?.invalidate()
-        repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
-            self?.sendKey(pressed: true)
+        let c1 = sender.c1
+        let c2 = sender.c2
+        repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            self.postKey(type: Int32(J2ME_INPUT_KEY_REPEATED), c1: c1, c2: c2)
+            self.repeatTimer = Timer.scheduledTimer(withTimeInterval: 0.10, repeats: true) { [weak self] _ in
+                self?.postKey(type: Int32(J2ME_INPUT_KEY_REPEATED), c1: c1, c2: c2)
+            }
         }
     }
 
@@ -376,16 +384,18 @@ class DecadeKeypadView: UIView, UIGestureRecognizerDelegate {
             sender.alpha = self.keypadAlphaValue
         }
 
-        sendKey(pressed: false)
+        // Always release the exact key codes belonging to this button
+        postKey(type: Int32(J2ME_INPUT_KEY_RELEASED), c1: sender.c1, c2: sender.c2)
+        if activeCode1 == sender.c1 { activeCode1 = 0 }
+        if activeCode2 == sender.c2 { activeCode2 = 0 }
     }
 
-    private func sendKey(pressed: Bool) {
-        let eventType = pressed ? Int32(J2ME_INPUT_KEY_PRESSED) : Int32(J2ME_INPUT_KEY_RELEASED)
-        if activeCode1 != 0 {
-            j2me_input_post_key(eventType, activeCode1)
+    private func postKey(type: Int32, c1: Int32, c2: Int32) {
+        if c1 != 0 {
+            j2me_input_post_key(type, c1)
         }
-        if activeCode2 != 0 {
-            j2me_input_post_key(eventType, activeCode2)
+        if c2 != 0 {
+            j2me_input_post_key(type, c2)
         }
     }
 

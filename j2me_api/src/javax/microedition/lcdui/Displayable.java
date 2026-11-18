@@ -7,8 +7,8 @@ import java.util.ArrayList;
  */
 public abstract class Displayable {
     private String title;
-    public int width = 240;
-    public int height = 320;
+    public int width = Display.getScreenWidth();
+    public int height = Display.getScreenHeight();
     private ArrayList<Command> commands = new ArrayList<Command>();
     private CommandListener commandListener;
     private Ticker ticker;

@@ -62,6 +62,65 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 		return name.replaceAll("[\\\\/:*?\"<>|]", "");
 	}
 
+	/**
+	 * Case-safe filename encoding for iOS APFS (case-insensitive filesystem).
+	 * Encodes '_' -> '__' and uppercase 'A'..'Z' -> '_' + lowercase, so
+	 * "KSkill" ("_k_skill") and "kskill" ("kskill") never collide on iOS!
+	 */
+	private static String encodeCaseSafe(String name) {
+		StringBuilder sb = new StringBuilder(name.length() + 8);
+		for (int i = 0; i < name.length(); i++) {
+			char c = name.charAt(i);
+			if (c == '_') {
+				sb.append("__");
+			} else if (c >= 'A' && c <= 'Z') {
+				sb.append('_').append((char)(c + 32));
+			} else {
+				sb.append(c);
+			}
+		}
+		return sb.toString();
+	}
+
+	private static String readHeaderStoreName(File headerFile) {
+		try (DataInputStream dis = new DataInputStream(new FileInputStream(headerFile))) {
+			RecordStoreImpl tmp = new RecordStoreImpl(null);
+			tmp.readHeader(dis);
+			tmp.setOpen();
+			return tmp.getName();
+		} catch (Throwable ignored) {
+			return null;
+		}
+	}
+
+	private String resolveDiskKey(String sanitizedName) {
+		File dataDir = new File(getDataDir());
+		String encoded = encodeCaseSafe(sanitizedName);
+		File encHeader = new File(dataDir, encoded + RECORD_STORE_HEADER_SUFFIX);
+		if (encHeader.exists()) {
+			return encoded;
+		}
+		if (!encoded.equals(sanitizedName)) {
+			File legacyHeader = new File(dataDir, sanitizedName + RECORD_STORE_HEADER_SUFFIX);
+			if (legacyHeader.exists()) {
+				String storedName = readHeaderStoreName(legacyHeader);
+				if (sanitizedName.equals(storedName)) {
+					return sanitizedName;
+				}
+			}
+		}
+		return encoded;
+	}
+
+	private static boolean isPureDigits(String s) {
+		if (s == null || s.isEmpty()) return false;
+		for (int i = 0; i < s.length(); i++) {
+			char c = s.charAt(i);
+			if (c < '0' || c > '9') return false;
+		}
+		return true;
+	}
+
 	@Override
 	public String getName() {
 		return "Android record store";
@@ -70,12 +129,18 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 	private synchronized void initializeIfNecessary() {
 		if (recordStores == null) {
 			recordStores = new ConcurrentHashMap<>();
-			String[] list = new File(getDataDir()).list();
+			File dataDir = new File(getDataDir());
+			String[] list = dataDir.list();
 			if (list != null) {
 				for (String fileName : list) {
 					if (fileName.endsWith(RECORD_STORE_HEADER_SUFFIX)) {
-						recordStores.put(fileName.substring(0,
-								fileName.length() - RECORD_STORE_HEADER_SUFFIX.length()), NULL_STORE);
+						String storedName = readHeaderStoreName(new File(dataDir, fileName));
+						if (storedName != null && !storedName.isEmpty()) {
+							recordStores.put(storedName, NULL_STORE);
+						} else {
+							recordStores.put(fileName.substring(0,
+									fileName.length() - RECORD_STORE_HEADER_SUFFIX.length()), NULL_STORE);
+						}
 					}
 				}
 			}
@@ -83,7 +148,7 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 	}
 
 	@Override
-	public void deleteRecordStore(String recordStoreName) throws RecordStoreException {
+	public synchronized void deleteRecordStore(String recordStoreName) throws RecordStoreException {
 		initializeIfNecessary();
 
 		recordStoreName = sanitizeName(recordStoreName);
@@ -96,14 +161,18 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 		}
 
 		File dataDir = new File(getDataDir());
-		String prefix = recordStoreName + ".";
+		String diskKey = resolveDiskKey(recordStoreName);
+		new File(dataDir, getHeaderFileName(diskKey)).delete();
+		String prefix = diskKey + ".";
 		String[] files = dataDir.list();
 		if (files != null) {
 			for (String name : files) {
-				int dot = name.indexOf('.', prefix.length() + 1);
-				if ((dot == -1 || dot == name.lastIndexOf('.')) && name.startsWith(prefix)) {
-					//noinspection ResultOfMethodCallIgnored
-					new File(dataDir, name).delete();
+				if (name.startsWith(prefix) && name.endsWith(RECORD_STORE_RECORD_SUFFIX)) {
+					String mid = name.substring(prefix.length(), name.length() - RECORD_STORE_RECORD_SUFFIX.length());
+					if (isPureDigits(mid)) {
+						//noinspection ResultOfMethodCallIgnored
+						new File(dataDir, name).delete();
+					}
 				}
 			}
 		}
@@ -113,7 +182,7 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 	}
 
 	@Override
-	public RecordStore openRecordStore(String recordStoreName, boolean createIfNecessary)
+	public synchronized RecordStore openRecordStore(String recordStoreName, boolean createIfNecessary)
 			throws RecordStoreException {
 		initializeIfNecessary();
 		recordStoreName = sanitizeName(recordStoreName);
@@ -124,8 +193,9 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 			return (RecordStoreImpl) value;
 		}
 
+		String diskKey = resolveDiskKey(recordStoreName);
 		RecordStoreImpl recordStoreImpl;
-		String headerName = getHeaderFileName(recordStoreName);
+		String headerName = getHeaderFileName(diskKey);
 		File headerFile = new File(getDataDir(), headerName);
 		try (DataInputStream dis = new DataInputStream(new FileInputStream(headerFile))) {
 			recordStoreImpl = new RecordStoreImpl(this);
@@ -158,26 +228,25 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 		recordStores.put(recordStoreName, recordStoreImpl);
 		synchronized (recordStoreImpl.records) {
 			File dataDir = new File(getDataDir());
-			String prefix = recordStoreName + ".";
+			String prefix = diskKey + ".";
 			String[] files = dataDir.list();
 			if (files != null) {
 				for (String name : files) {
 					if (name.startsWith(prefix) && name.endsWith(RECORD_STORE_RECORD_SUFFIX)) {
+						String mid = name.substring(prefix.length(), name.length() - RECORD_STORE_RECORD_SUFFIX.length());
+						if (!isPureDigits(mid)) {
+							continue; // Ignore other stores that share a dot prefix!
+						}
 						File file = new File(dataDir, name);
 						try (DataInputStream dis = new DataInputStream(new FileInputStream(file))) {
 							recordStoreImpl.readRecord(dis);
 						} catch (IOException e) {
 							System.out.println("loadFromDisk: broken record " + file + ": " + e.getMessage());
-							int pLen = prefix.length();
-							int sLen = RECORD_STORE_RECORD_SUFFIX.length();
-							int nLen = name.length();
-							if (pLen + sLen < nLen) {
-								try {
-									int recordId = Integer.parseInt(name.substring(pLen, nLen - sLen));
-									recordStoreImpl.records.put(recordId, new byte[0]);
-								} catch (NumberFormatException numberFormatException) {
-									System.out.println("loadFromDisk: ERROR stubbing broken record " + file);
-								}
+							try {
+								int recordId = Integer.parseInt(mid);
+								recordStoreImpl.records.put(recordId, new byte[0]);
+							} catch (NumberFormatException numberFormatException) {
+								System.out.println("loadFromDisk: ERROR stubbing broken record " + file);
 							}
 						}
 					}
@@ -212,7 +281,8 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 	@Override
 	public void loadRecord(RecordStoreImpl recordStoreImpl, int recordId)
 			throws RecordStoreException {
-		String recordName = getRecordFileName(recordStoreImpl.getName(), recordId);
+		String diskKey = resolveDiskKey(recordStoreImpl.getName());
+		String recordName = getRecordFileName(diskKey, recordId);
 		try (DataInputStream dis = new DataInputStream(new FileInputStream(new File(getDataDir(), recordName)))) {
 			recordStoreImpl.readRecord(dis);
 		} catch (FileNotFoundException e) {
@@ -230,15 +300,22 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 
 	private synchronized void deleteFromDisk(RecordStoreImpl recordStore, int recordId)
 			throws RecordStoreException {
-		String headerName = getHeaderFileName(recordStore.getName());
-		try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(new File(getDataDir(), headerName)))) {
-			recordStore.writeHeader(dos);
+		String diskKey = resolveDiskKey(recordStore.getName());
+		String headerName = getHeaderFileName(diskKey);
+		File headerFile = new File(getDataDir(), headerName);
+		try {
+			FileOutputStream fos = new FileOutputStream(headerFile);
+			try (DataOutputStream dos = new DataOutputStream(fos)) {
+				recordStore.writeHeader(dos);
+				dos.flush();
+				try { fos.getFD().sync(); } catch (Throwable ignored) {}
+			}
 		} catch (IOException e) {
 			System.out.println("RecordStore.saveToDisk: ERROR writing object to " + headerName + ": " + e.getMessage());
 			throw new RecordStoreException(e.getMessage());
 		}
 
-		new File(getDataDir(), getRecordFileName(recordStore.getName(), recordId)).delete();
+		new File(getDataDir(), getRecordFileName(diskKey, recordId)).delete();
 	}
 
 	/**
@@ -246,19 +323,57 @@ public class AndroidRecordStoreManager implements RecordStoreManager {
 	 */
 	private synchronized void saveToDisk(RecordStoreImpl recordStore, int recordId)
 			throws RecordStoreException {
-		String headerName = getHeaderFileName(recordStore.getName());
-		try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(new File(getDataDir(), headerName)))) {
-			recordStore.writeHeader(dos);
+		String diskKey = resolveDiskKey(recordStore.getName());
+		String headerName = getHeaderFileName(diskKey);
+		File dir = new File(getDataDir());
+		File headerFile = new File(dir, headerName);
+		File headerTmp = new File(dir, headerName + ".tmp");
+		try {
+			FileOutputStream fos = new FileOutputStream(headerTmp);
+			try (DataOutputStream dos = new DataOutputStream(fos)) {
+				recordStore.writeHeader(dos);
+				dos.flush();
+				try { fos.getFD().sync(); } catch (Throwable ignored) {}
+			}
+			if (headerFile.exists()) headerFile.delete();
+			if (!headerTmp.renameTo(headerFile)) {
+				FileOutputStream fos2 = new FileOutputStream(headerFile);
+				try (DataOutputStream dos2 = new DataOutputStream(fos2)) {
+					recordStore.writeHeader(dos2);
+					dos2.flush();
+					try { fos2.getFD().sync(); } catch (Throwable ignored) {}
+				}
+				headerTmp.delete();
+			}
 		} catch (IOException e) {
+			headerTmp.delete();
 			System.out.println("RecordStore.saveToDisk: ERROR writing object to " + headerName + ": " + e.getMessage());
 			throw new RecordStoreException(e.getMessage());
 		}
 
 		if (recordId != -1) {
-			String recordName = getRecordFileName(recordStore.getName(), recordId);
-			try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(new File(getDataDir(), recordName)))) {
-				recordStore.writeRecord(dos, recordId);
+			String recordName = getRecordFileName(diskKey, recordId);
+			File recordFile = new File(dir, recordName);
+			File recordTmp = new File(dir, recordName + ".tmp");
+			try {
+				FileOutputStream fos = new FileOutputStream(recordTmp);
+				try (DataOutputStream dos = new DataOutputStream(fos)) {
+					recordStore.writeRecord(dos, recordId);
+					dos.flush();
+					try { fos.getFD().sync(); } catch (Throwable ignored) {}
+				}
+				if (recordFile.exists()) recordFile.delete();
+				if (!recordTmp.renameTo(recordFile)) {
+					FileOutputStream fos2 = new FileOutputStream(recordFile);
+					try (DataOutputStream dos2 = new DataOutputStream(fos2)) {
+						recordStore.writeRecord(dos2, recordId);
+						dos2.flush();
+						try { fos2.getFD().sync(); } catch (Throwable ignored) {}
+					}
+					recordTmp.delete();
+				}
 			} catch (IOException e) {
+				recordTmp.delete();
 				System.out.println("RecordStore.saveToDisk: ERROR writing object to " + recordName + ": " + e.getMessage());
 				throw new RecordStoreException(e.getMessage());
 			}

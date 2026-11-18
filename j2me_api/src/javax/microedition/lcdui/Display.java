@@ -48,8 +48,12 @@ public class Display {
         Displayable old = current;
         current = d;
 
+        boolean resized = (d.width != screenWidth || d.height != screenHeight);
         d.width = screenWidth;
         d.height = screenHeight;
+        if (resized) {
+            try { d.sizeChanged(screenWidth, screenHeight); } catch (Throwable ignored) {}
+        }
 
         if (d instanceof Canvas) {
             // Pass canvas commands to native (for soft-key display)

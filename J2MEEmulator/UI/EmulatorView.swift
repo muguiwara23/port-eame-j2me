@@ -35,7 +35,7 @@ class EmulatorView: UIView {
         layer.magnificationFilter = .nearest
         layer.minificationFilter = .nearest
         contentMode = .scaleAspectFit
-        isMultipleTouchEnabled = true
+        isMultipleTouchEnabled = false
         isUserInteractionEnabled = true
     }
 
@@ -59,33 +59,34 @@ class EmulatorView: UIView {
     }
 
     // ============================================================
-    // Touch handling
+    // Touch handling (Strict single-pointer MIDP 2.0 Canvas)
     // ============================================================
 
+    private var activeTouch: UITouch?
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
-            let pt = touch.location(in: self)
-            if let (vx, vy) = convertToVirtual(pt) {
-                j2me_input_post_touch(Int32(J2ME_INPUT_POINTER_PRESSED), Int32(vx), Int32(vy))
-            }
+        guard activeTouch == nil, let touch = touches.first else { return }
+        let pt = touch.location(in: self)
+        if let (vx, vy) = convertToVirtual(pt, clampOutside: false) {
+            activeTouch = touch
+            j2me_input_post_touch(Int32(J2ME_INPUT_POINTER_PRESSED), Int32(vx), Int32(vy))
         }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
-            let pt = touch.location(in: self)
-            if let (vx, vy) = convertToVirtual(pt) {
-                j2me_input_post_touch(Int32(J2ME_INPUT_POINTER_DRAGGED), Int32(vx), Int32(vy))
-            }
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        let pt = touch.location(in: self)
+        if let (vx, vy) = convertToVirtual(pt, clampOutside: true) {
+            j2me_input_post_touch(Int32(J2ME_INPUT_POINTER_DRAGGED), Int32(vx), Int32(vy))
         }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
-            let pt = touch.location(in: self)
-            if let (vx, vy) = convertToVirtual(pt) {
-                j2me_input_post_touch(Int32(J2ME_INPUT_POINTER_RELEASED), Int32(vx), Int32(vy))
-            }
+        guard let touch = activeTouch, touches.contains(touch) else { return }
+        let pt = touch.location(in: self)
+        activeTouch = nil
+        if let (vx, vy) = convertToVirtual(pt, clampOutside: true) {
+            j2me_input_post_touch(Int32(J2ME_INPUT_POINTER_RELEASED), Int32(vx), Int32(vy))
         }
     }
 
@@ -94,8 +95,8 @@ class EmulatorView: UIView {
     }
 
     /// Convert screen point to J2ME virtual canvas coordinates.
-    /// Returns nil if the touch is outside the canvas area.
-    private func convertToVirtual(_ point: CGPoint) -> (Int, Int)? {
+    /// Returns nil if clampOutside is false and the touch is outside the canvas area.
+    private func convertToVirtual(_ point: CGPoint, clampOutside: Bool = true) -> (Int, Int)? {
         let viewW = bounds.width
         let viewH = bounds.height
         guard viewW > 0 && viewH > 0 else { return nil }
@@ -106,6 +107,7 @@ class EmulatorView: UIView {
         if !isAspectFit {
             let vx = point.x * cw / viewW
             let vy = point.y * ch / viewH
+            if !clampOutside && (vx < 0 || vx >= cw || vy < 0 || vy >= ch) { return nil }
             let cx = max(0, min(cw - 1, vx))
             let cy = max(0, min(ch - 1, vy))
             return (Int(cx), Int(cy))
@@ -124,6 +126,8 @@ class EmulatorView: UIView {
         // Convert screen coords to virtual coords
         let vx = (point.x - offsetX) * cw / displayW
         let vy = (point.y - offsetY) * ch / displayH
+
+        if !clampOutside && (vx < 0 || vx >= cw || vy < 0 || vy >= ch) { return nil }
 
         // Clamp to canvas bounds
         let cx = max(0, min(cw - 1, vx))
