@@ -39,6 +39,9 @@ void j2me_render_set_background(int is_bg);
 /// Query whether the app is currently in background low-CPU render bypass mode.
 int j2me_render_is_background(void);
 
+/// Immediately free all queued dead RenderContext/RenderImage shells.
+void j2me_render_purge_dead_shells(void);
+
 #ifdef __cplusplus
 }
 #endif

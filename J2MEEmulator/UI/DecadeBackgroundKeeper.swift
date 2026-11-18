@@ -19,6 +19,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     private var audioPlayer: AVAudioPlayer?
     private var watchdogTimer: DispatchSourceTimer?
+    private var ramCleanTimer: DispatchSourceTimer?
 
     var isTreoActive: Bool {
         get {
@@ -32,11 +33,26 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    var isAutoCleanRamActive: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: "decade_auto_clean_ram") == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: "decade_auto_clean_ram")
+        }
+        set {
+            setAutoCleanRamActive(newValue)
+        }
+    }
+
     private override init() {
         super.init()
         setupNotifications()
         if isTreoActive {
             startKeepalive()
+        }
+        if isAutoCleanRamActive {
+            startAutoRamCleaner()
         }
     }
 
@@ -84,6 +100,63 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             name: AVAudioSession.mediaServicesWereResetNotification,
             object: AVAudioSession.sharedInstance()
         )
+        nc.addObserver(
+            self,
+            selector: #selector(handleMemoryWarning),
+            name: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil
+        )
+    }
+
+    func setAutoCleanRamActive(_ active: Bool) {
+        UserDefaults.standard.set(active, forKey: "decade_auto_clean_ram")
+        if active {
+            startAutoRamCleaner()
+        } else {
+            stopAutoRamCleaner()
+        }
+    }
+
+    @objc private func handleMemoryWarning() {
+        performRamCleanup(completion: nil)
+    }
+
+    /// Thực thi dọn dẹp RAM thực sự: ép MiniJVM GC, dọn bộ đệm ảnh CoreGraphics,
+    /// xoá URLCache và trả trang nhớ malloc về kernel iOS (chống Jetsam kill khi treo lâu).
+    func performRamCleanup(completion: ((Double, Double) -> Void)? = nil) {
+        let beforeMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+        URLCache.shared.removeAllCachedResponses()
+        GameViewController.purgeInactiveSlotFrames()
+
+        DispatchQueue.global(qos: .utility).async {
+            jvm_bridge_clean_ram()
+            Thread.sleep(forTimeInterval: 0.35)
+            jvm_bridge_clean_ram()
+            let afterMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+            print(String(format: "[RAM Cleaner] %.1f MB -> %.1f MB", beforeMB, afterMB))
+            if let cb = completion {
+                DispatchQueue.main.async {
+                    cb(beforeMB, afterMB)
+                }
+            }
+        }
+    }
+
+    private func startAutoRamCleaner() {
+        guard ramCleanTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        timer.schedule(deadline: .now() + 90.0, repeating: 90.0)
+        timer.setEventHandler { [weak self] in
+            guard let self = self, self.isAutoCleanRamActive else { return }
+            self.performRamCleanup(completion: nil)
+        }
+        timer.resume()
+        ramCleanTimer = timer
+    }
+
+    private func stopAutoRamCleaner() {
+        ramCleanTimer?.cancel()
+        ramCleanTimer = nil
     }
 
     func setTreoActive(_ active: Bool) {
@@ -125,6 +198,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
         if isTreoActive {
             startKeepalive()
+        }
+        if isAutoCleanRamActive {
+            performRamCleanup(completion: nil)
         }
     }
 

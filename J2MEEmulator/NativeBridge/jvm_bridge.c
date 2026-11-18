@@ -17,6 +17,10 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <ctype.h>
+#if defined(__APPLE__) || defined(__MACH__)
+#include <mach/mach.h>
+#include <malloc/malloc.h>
+#endif
 
 #define MAX_TAB_PROXIES 64
 #define MAX_SERVER_RULES 32
@@ -577,4 +581,65 @@ void jvm_bridge_request_stop(void) {
 
 int jvm_bridge_is_stop_requested(void) {
     return jvm_bridge_is_slot_stop_requested(jvm_bridge_get_focused_slot());
+}
+
+void jvm_bridge_clean_ram(void) {
+    // 1. Trigger immediate MiniJVM GC across all running game slots
+    pthread_mutex_lock(&g_slots_lock);
+    for (int i = 0; i < JVM_BRIDGE_MAX_SLOTS; i++) {
+        MiniJVM *jvm = g_slots[i].jvm;
+        if (jvm && jvm->collector) {
+            jvm->collector->lastgc = 0; // Wakes GC thread immediately
+        }
+    }
+    pthread_mutex_unlock(&g_slots_lock);
+
+    // 2. Purge dead CoreGraphics RenderContext/RenderImage shells
+    j2me_render_purge_dead_shells();
+
+    // 3. Return freed malloc heap pages back to iOS kernel to prevent Jetsam kills
+#if defined(__APPLE__) || defined(__MACH__)
+    malloc_zone_pressure_relief(NULL, 0);
+#endif
+}
+
+long long jvm_bridge_get_used_ram_kb(void) {
+#if defined(__APPLE__) || defined(__MACH__)
+    task_vm_info_data_t vmInfo;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    kern_return_t kr = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vmInfo, &count);
+    if (kr == KERN_SUCCESS) {
+        return (long long)(vmInfo.phys_footprint / 1024);
+    }
+#endif
+    return 0;
+}
+
+double jvm_bridge_get_cpu_usage_percent(void) {
+#if defined(__APPLE__) || defined(__MACH__)
+    thread_act_array_t thread_list = NULL;
+    mach_msg_type_number_t thread_count = 0;
+    kern_return_t kr = task_threads(mach_task_self(), &thread_list, &thread_count);
+    if (kr != KERN_SUCCESS || !thread_list) {
+        return 0.0;
+    }
+
+    double total_cpu = 0.0;
+    for (mach_msg_type_number_t i = 0; i < thread_count; i++) {
+        thread_info_data_t thinfo;
+        mach_msg_type_number_t thread_info_count = THREAD_INFO_MAX;
+        kr = thread_info(thread_list[i], THREAD_BASIC_INFO, (thread_info_t)thinfo, &thread_info_count);
+        if (kr == KERN_SUCCESS) {
+            thread_basic_info_t basic_info = (thread_basic_info_t)thinfo;
+            if (!(basic_info->flags & TH_FLAGS_IDLE)) {
+                total_cpu += (double)basic_info->cpu_usage / (double)TH_USAGE_SCALE * 100.0;
+            }
+        }
+    }
+
+    vm_deallocate(mach_task_self(), (vm_offset_t)thread_list, thread_count * sizeof(thread_t));
+    return total_cpu;
+#else
+    return 0.0;
+#endif
 }

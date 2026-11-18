@@ -115,6 +115,16 @@ void jvm_bridge_request_stop(void);
 
 int jvm_bridge_is_stop_requested(void);
 
+/// Trigger immediate full MiniJVM GC across all slots, purge render dead shells,
+/// and return freed malloc heap pages back to iOS kernel (prevents Jetsam kills during long AFK).
+void jvm_bridge_clean_ram(void);
+
+/// Query current physical RAM footprint of this process in kilobytes (KB).
+long long jvm_bridge_get_used_ram_kb(void);
+
+/// Query current CPU usage percentage of this process (0.0 - 100.0 * cores).
+double jvm_bridge_get_cpu_usage_percent(void);
+
 #ifdef __cplusplus
 }
 #endif

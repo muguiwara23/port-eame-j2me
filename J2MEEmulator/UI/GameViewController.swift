@@ -61,6 +61,23 @@ class GameViewController: UIViewController {
         }
     }
 
+    static func purgeInactiveSlotFrames() {
+        let activeIdx = activeGameViewController?.activeTabIndex ?? -1
+        slotFrameLock.lock()
+        let keysToDrop = slotFrames.keys.filter { $0 != activeIdx }
+        for k in keysToDrop {
+            slotFrames.removeValue(forKey: k)
+        }
+        slotFrameLock.unlock()
+
+        DispatchQueue.main.async {
+            guard let vc = activeGameViewController else { return }
+            for i in 0..<vc.tabSessions.count where i != vc.activeTabIndex {
+                vc.tabSessions[i].screenshot = nil
+            }
+        }
+    }
+
     var isAppInBackground: Bool = false
 
     let emulatorView = EmulatorView()
@@ -123,6 +140,7 @@ class GameViewController: UIViewController {
     private var isKeypadHidden = false
     private var keypadCurrentHeight: CGFloat = 280
     private var autoShutdownTimer: Timer?
+    private var statsTimer: Timer?
 
     init(jarPath: String, appName: String, appIcon: UIImage,
          canvasWidth: Int = 240, canvasHeight: Int = 320,
@@ -145,6 +163,7 @@ class GameViewController: UIViewController {
         setGlobalEmulatorView(nil)
         alertTimeoutWork?.cancel()
         autoShutdownTimer?.invalidate()
+        statsTimer?.invalidate()
         UIApplication.shared.isIdleTimerDisabled = false
         GameViewController.slotFrameLock.lock()
         GameViewController.slotFrames.removeAll()
@@ -154,7 +173,7 @@ class GameViewController: UIViewController {
     private var alertTimeoutWork: DispatchWorkItem?
 
     override var prefersStatusBarHidden: Bool { false }
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { .darkContent }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         return .allButUpsideDown
@@ -314,15 +333,19 @@ class GameViewController: UIViewController {
         titleLabel.font = .systemFont(ofSize: 16, weight: .bold)
         titleLabel.textColor = UIColor(red: 0.10, green: 0.12, blue: 0.10, alpha: 1.0)
 
-        subtitleLabel.text = appName
-        subtitleLabel.font = .systemFont(ofSize: 11, weight: .regular)
-        subtitleLabel.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
+        subtitleLabel.text = "RAM: -- MB • CPU: --%"
+        subtitleLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        subtitleLabel.textColor = UIColor(red: 0.18, green: 0.52, blue: 0.28, alpha: 1.0)
 
         let titleStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
         titleStack.axis = .vertical
         titleStack.spacing = 1
+        titleStack.isUserInteractionEnabled = true
+        let cleanTap = UITapGestureRecognizer(target: self, action: #selector(triggerManualRamCleanup))
+        titleStack.addGestureRecognizer(cleanTap)
         titleStack.translatesAutoresizingMaskIntoConstraints = false
         topToolbar.addSubview(titleStack)
+        startSystemStatsMonitor()
 
         // Toolbar action buttons on right: [+] [⌨] [⋮]
         let actionStack = UIStackView()
@@ -885,6 +908,9 @@ class GameViewController: UIViewController {
         popup.onOpenProxySettings = { [weak self] in
             self?.openProxyManager(segment: 0)
         }
+        popup.onCleanRam = { [weak self] in
+            self?.triggerManualRamCleanup()
+        }
         popup.onOpenKeyboardSettings = { [weak self] in
             self?.promptChangeKeyboardLayout()
         }
@@ -950,6 +976,47 @@ class GameViewController: UIViewController {
             Thread.sleep(forTimeInterval: 0.15)
             DispatchQueue.main.async {
                 self.startGame()
+            }
+        }
+    }
+
+    // ============================================================
+    // MARK: - Live RAM / CPU Status Bar & 1-Tap RAM Cleaner
+    // ============================================================
+
+    private func startSystemStatsMonitor() {
+        statsTimer?.invalidate()
+        updateSystemStatsLabel()
+        statsTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.updateSystemStatsLabel()
+        }
+    }
+
+    private func updateSystemStatsLabel() {
+        guard !isAppInBackground else { return }
+        let usedRamMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+        let totalRamGB = Double(ProcessInfo.processInfo.physicalMemory) / (1024.0 * 1024.0 * 1024.0)
+        let cpuPct = min(999.0, max(0.0, jvm_bridge_get_cpu_usage_percent()))
+
+        subtitleLabel.text = String(format: "RAM: %.0f MB / %.0f GB • CPU: %.0f%%", usedRamMB, totalRamGB, cpuPct)
+        if usedRamMB > 220.0 || cpuPct > 80.0 {
+            subtitleLabel.textColor = UIColor(red: 0.85, green: 0.35, blue: 0.10, alpha: 1.0) // Warning orange
+        } else {
+            subtitleLabel.textColor = UIColor(red: 0.18, green: 0.52, blue: 0.28, alpha: 1.0) // Healthy green
+        }
+    }
+
+    @objc private func triggerManualRamCleanup() {
+        softKeyHaptic.impactOccurred(intensity: 0.7)
+        showToast(message: "Đang dọn dẹp RAM...")
+        DecadeBackgroundKeeper.shared.performRamCleanup { [weak self] beforeMB, afterMB in
+            guard let self = self else { return }
+            self.updateSystemStatsLabel()
+            let saved = max(0.0, beforeMB - afterMB)
+            if saved >= 0.5 {
+                self.showToast(message: String(format: "Đã dọn RAM: %.0f MB → %.0f MB (giảm %.1f MB)", beforeMB, afterMB, saved))
+            } else {
+                self.showToast(message: String(format: "RAM đang tối ưu: %.0f MB", afterMB))
             }
         }
     }

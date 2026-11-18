@@ -12,6 +12,7 @@ final class TuoiThoPopupMenuView: UIView {
 
     var onOpenGameSettings: (() -> Void)?
     var onOpenProxySettings: (() -> Void)?
+    var onCleanRam: (() -> Void)?
     var onOpenKeyboardSettings: (() -> Void)?
     var onArrangeKeyboard: (() -> Void)?
     var onToggleKeyboardVisibility: (() -> Void)?
@@ -104,6 +105,15 @@ final class TuoiThoPopupMenuView: UIView {
             action: #selector(handleProxySettings)
         )
         contentStack.addArrangedSubview(btnProxy)
+
+        // 1c. Dọn Dẹp RAM (Sparkles icon xanh ngọc)
+        let btnCleanRam = makeMenuItem(
+            iconName: "sparkles",
+            iconColor: UIColor(red: 0.00, green: 0.54, blue: 0.48, alpha: 1.0), // Teal #00897B
+            title: "Dọn Dẹp RAM",
+            action: #selector(handleCleanRam)
+        )
+        contentStack.addArrangedSubview(btnCleanRam)
 
         // 2. Cài Đặt Bàn Phím (Keyboard+gear icon xanh)
         let btnKbSettings = makeMenuItem(
@@ -243,6 +253,12 @@ final class TuoiThoPopupMenuView: UIView {
     @objc private func handleProxySettings() {
         dismissMenu { [weak self] in
             self?.onOpenProxySettings?()
+        }
+    }
+
+    @objc private func handleCleanRam() {
+        dismissMenu { [weak self] in
+            self?.onCleanRam?()
         }
     }
 

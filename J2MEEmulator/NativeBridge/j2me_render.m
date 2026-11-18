@@ -168,15 +168,26 @@ static void enqueue_dead_img(RenderImage *img) {
         memory_order_release, memory_order_relaxed));
 }
 
+static spinlock_t g_dead_lock = {0, 0, 0};
+
 static void process_dead_shells(void) {
+    spin_lock(&g_dead_lock);
     // Free gen1 (dead for 1+ frames — all in-flight acquires have completed)
     RenderContext *rc = g_dead_rc_gen1;
-    while (rc) { RenderContext *next = rc->next_dead; free(rc); rc = next; }
+    g_dead_rc_gen1 = NULL;
     RenderImage *img = g_dead_img_gen1;
-    while (img) { RenderImage *next = img->next_dead; free(img); img = next; }
+    g_dead_img_gen1 = NULL;
     // Promote gen0 → gen1
     g_dead_rc_gen1 = atomic_exchange_explicit(&g_dead_rc_gen0, NULL, memory_order_acquire);
     g_dead_img_gen1 = atomic_exchange_explicit(&g_dead_img_gen0, NULL, memory_order_acquire);
+    spin_unlock(&g_dead_lock);
+
+    while (rc) { RenderContext *next = rc->next_dead; free(rc); rc = next; }
+    while (img) { RenderImage *next = img->next_dead; free(img); img = next; }
+}
+
+void j2me_render_purge_dead_shells(void) {
+    process_dead_shells();
 }
 
 // ============================================================

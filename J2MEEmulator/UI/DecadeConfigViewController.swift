@@ -49,6 +49,7 @@ class DecadeConfigViewController: UIViewController {
     private let keyboardStatusLabel = UILabel()
     private let proxyStatusLabel = UILabel()
     private let treoSwitch = UISwitch()
+    private let autoCleanRamSwitch = UISwitch()
     private let soundSwitch = UISwitch()
 
     init(app: AppsListViewController.AppInfo, onStart: ((Int, Int, Int) -> Void)? = nil) {
@@ -384,6 +385,21 @@ class DecadeConfigViewController: UIViewController {
         // Divider
         cardStack.addArrangedSubview(makeDivider())
 
+        // Item 2b: Tự Động Dọn RAM (Giải phóng bộ nhớ định kỳ khi treo lâu)
+        let ramRow = makeToggleRow(
+            icon: "sparkles",
+            iconBg: UIColor(red: 0.88, green: 0.96, blue: 0.95, alpha: 1.0),
+            iconTint: UIColor(red: 0.00, green: 0.54, blue: 0.48, alpha: 1.0),
+            title: "Tự Động Dọn RAM",
+            subtitle: "Giải Phóng Bộ Nhớ Khi Treo Lâu",
+            toggle: autoCleanRamSwitch,
+            action: #selector(autoCleanRamSwitchChanged(_:))
+        )
+        cardStack.addArrangedSubview(ramRow)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
         // Item 3: Âm Thanh Game (Nhạc Nền Và Tiếng Hiệu Ứng)
         let soundRow = makeToggleRow(
             icon: "speaker.wave.2.fill",
@@ -614,6 +630,15 @@ class DecadeConfigViewController: UIViewController {
         saveValues()
     }
 
+    @objc private func autoCleanRamSwitchChanged(_ sender: UISwitch) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        DecadeBackgroundKeeper.shared.setAutoCleanRamActive(sender.isOn)
+        if sender.isOn {
+            DecadeBackgroundKeeper.shared.performRamCleanup(completion: nil)
+        }
+        saveValues()
+    }
+
     @objc private func soundSwitchChanged(_ sender: UISwitch) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         UserDefaults.standard.set(sender.isOn, forKey: "decade_game_sound")
@@ -728,6 +753,9 @@ class DecadeConfigViewController: UIViewController {
 
         // Treo khi ra ngoài: Mặc định luôn là TRUE
         treoSwitch.isOn = DecadeBackgroundKeeper.shared.isTreoActive
+
+        // Tự động dọn RAM: Mặc định luôn là TRUE
+        autoCleanRamSwitch.isOn = DecadeBackgroundKeeper.shared.isAutoCleanRamActive
 
         // Âm thanh game: Mặc định TRUE
         soundSwitch.isOn = defaults.object(forKey: "decade_game_sound") as? Bool ?? true
