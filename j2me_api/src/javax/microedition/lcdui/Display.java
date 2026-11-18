@@ -234,11 +234,11 @@ public class Display {
                 }
             }
 
-            // Sleep cleanly: 120ms in background (~8 wakeups/sec, eliminates iOS EXC_RESOURCE WAKEUPS kill!)
+            // Sleep cleanly: 60ms in background (~16 wakeups/sec, eliminates iOS EXC_RESOURCE WAKEUPS kill!)
             // and 16ms in foreground (~60 FPS responsive).
             try {
                 if (!MIDlet.isDestroyRequested()) {
-                    Thread.sleep(inBg ? 120 : 16);
+                    Thread.sleep(inBg ? 60 : 16);
                 }
             } catch (InterruptedException e) {
                 break;

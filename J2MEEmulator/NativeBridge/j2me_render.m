@@ -435,10 +435,9 @@ static s32 n_flushToScreen(Runtime *runtime, JClass *clazz) {
     process_dead_shells();
 
     if (atomic_load_explicit(&g_is_background, memory_order_relaxed)) {
-        // In background / screen-off mode: mark thread blocking so MiniJVM GC never stalls!
-        jthread_block_enter(runtime);
-        usleep(60000);
-        jthread_block_exit(runtime);
+        // In background / screen-off mode: dead shells are purged above.
+        // Skip CGImage creation & screen blit entirely to conserve 100% CPU/GPU,
+        // and return immediately without arbitrary sleep so game loop remains smooth!
         return RUNTIME_STATUS_NORMAL;
     }
 

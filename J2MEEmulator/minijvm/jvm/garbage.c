@@ -314,9 +314,12 @@ void gc_dump_runtime(GcCollector *collector) {
 }
 
 
-// External native memory counter — set by j2me_render.m for CGContext allocations.
-// Allows GC to account for native memory pressure alongside Java heap.
+// External native memory counter & background/shell hooks from j2me_render.m.
+// Allows GC to account for native memory pressure, throttle background wakeups,
+// and purge deferred dead CGContext/CGImage shells even when rendering is bypassed.
 s64 g_native_extra_heap = 0;
+extern int j2me_render_is_background(void);
+extern void j2me_render_purge_dead_shells(void);
 
 s64 gc_sum_heap(GcCollector *collector) {
     s64 hsize = threadlist_sum_heap(collector->jvm);
@@ -350,6 +353,7 @@ s64 gc_sum_heap(GcCollector *collector) {
 s32 _gc_thread_run(void *para) {
     GcCollector *collector = (GcCollector *) para;
     MiniJVM *jvm = collector->jvm;
+    thrd_detach(thrd_current());
 
     while (1) {
 
@@ -362,28 +366,18 @@ s32 _gc_thread_run(void *para) {
             threadSleep(1000);
             continue;
         }
-        if (cur_mil - collector->lastgc < jvm->garbage_collect_period_ms) {
-            threadSleep(jvm->garbage_collect_period_ms / 2);
-            continue;
-        };
 
         s64 heap = gc_sum_heap(collector);
         s64 threshold = jvm->max_heap_size * jvm->heap_overload_percent / 100;
-        s64 native_extra = __atomic_load_n(&g_native_extra_heap, __ATOMIC_RELAXED);
-        if (cur_mil - collector->lastgc > jvm->garbage_collect_period_ms || heap >= threshold) {
-            s64 heap_before = heap;
+        int in_bg = j2me_render_is_background();
+        s64 effective_period = in_bg ? (jvm->garbage_collect_period_ms * 3) : jvm->garbage_collect_period_ms;
+        if (effective_period < 1000) effective_period = 1000;
+
+        if (collector->lastgc == 0 || (cur_mil - collector->lastgc) >= effective_period || heap >= threshold) {
             _garbage_collect(collector);
-            s64 heap_after = gc_sum_heap(collector);
-            s64 native_after = __atomic_load_n(&g_native_extra_heap, __ATOMIC_RELAXED);
-            jvm_printf("[GC] collected: java %lldKB→%lldKB, native %lldKB, total %lldKB→%lldKB (threshold %lldKB) objs=%lld\n",
-                       (heap_before - native_extra) / 1024, (heap_after - native_after) / 1024,
-                       native_after / 1024,
-                       heap_before / 1024, heap_after / 1024,
-                       threshold / 1024,
-                       (s64)collector->obj_count);
-            collector->lastgc = cur_mil;
+            collector->lastgc = currentTimeMillis();
         } else {
-            threadSleep(jvm->garbage_collect_period_ms / 2);
+            threadSleep(in_bg ? 1500 : 1000);
         }
     }
     collector->_garbage_thread_status = GARBAGE_THREAD_DEAD;
@@ -588,7 +582,7 @@ s64 _garbage_collect(GcCollector *collector) {
     }
     spin_lock(&collector->lock);
     collector->obj_count = iter - del;
-    collector->obj_heap_size -= mem_free;
+    collector->obj_heap_size = mem_total - mem_free;
     spin_unlock(&collector->lock);
 
 #if _JVM_DEBUG_LOG_LEVEL > 1
@@ -599,10 +593,12 @@ s64 _garbage_collect(GcCollector *collector) {
 #ifdef MEM_ALLOC_LTALLOC
     jvm_squeeze(0);
 #endif
+    // Reclaim deferred dead CoreGraphics shells even when screen-off render bypass is active
+    j2me_render_purge_dead_shells();
 #if defined(__APPLE__) || defined(__MACH__)
     static unsigned int gc_pressure_cnt = 0;
     gc_pressure_cnt++;
-    if (mem_free > 262144 || (gc_pressure_cnt & 7) == 0) {
+    if (mem_free > 65536 || (gc_pressure_cnt & 3) == 0) {
         malloc_zone_pressure_relief(NULL, 0);
     }
 #endif

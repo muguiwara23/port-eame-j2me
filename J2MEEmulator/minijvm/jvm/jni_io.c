@@ -396,7 +396,9 @@ static s32 sock_recv(VmSock *vmsock, u8 *buf, s32 count, Runtime *runtime) {
         if (vmsock->non_block) {
             ret = mbedtls_net_recv(&vmsock->contex, buf, count);
         } else {
-            ret = mbedtls_net_recv_timeout(&vmsock->contex, buf, count, vmsock->rcv_time_out ? vmsock->rcv_time_out : 100);
+            // 500ms default poll timeout cuts idle socket wakeups 5x (10/s -> 2/s)
+            // while still waking instantly on incoming TCP data via select().
+            ret = mbedtls_net_recv_timeout(&vmsock->contex, buf, count, vmsock->rcv_time_out ? vmsock->rcv_time_out : 500);
         }
         if (runtime->thrd_info->is_interrupt) {//vm waiting for destroy
             ret = -1;
@@ -1065,6 +1067,8 @@ s32 org_mini_fs_InnerFile_loadFS(Runtime *runtime, JClass *clazz) {
         ByteBuf *platformPath = bytebuf_create(0);
         s32 len = conv_utf8_2_platform_encoding(platformPath, filepath);
         if (len < 0) {
+            bytebuf_destroy(platformPath);
+            utf8_destroy(filepath);
             Instance *exception = exception_create(JVM_EXCEPTION_ILLEGALARGUMENT, runtime);
             push_ref(runtime->stack, (__refer) exception);
             ret = RUNTIME_STATUS_EXCEPTION;

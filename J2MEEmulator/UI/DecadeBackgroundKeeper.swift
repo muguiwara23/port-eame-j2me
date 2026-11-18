@@ -29,6 +29,22 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private var ramCleanTimer: DispatchSourceTimer?
     private var remoteCommandsConfigured = false
     private var currentGameName: String = "J2ME Game"
+    private var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+
+    private func beginAppBackgroundTask() {
+        guard bgTaskID == .invalid else { return }
+        bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "DecadeKeepAliveTransition") { [weak self] in
+            self?.endAppBackgroundTask()
+        }
+    }
+
+    private func endAppBackgroundTask() {
+        if bgTaskID != .invalid {
+            let task = bgTaskID
+            bgTaskID = .invalid
+            UIApplication.shared.endBackgroundTask(task)
+        }
+    }
 
     var isTreoActive: Bool {
         get {
@@ -222,8 +238,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     }
 
     @objc func onSceneDidEnterBackground() {
+        beginAppBackgroundTask()
         if !DecadePiPManager.shared.isPiPActive {
-            // Bật chế độ ngắt render đồ hoạ CoreGraphics/GL + hạ wakeup xuống ~8/s
+            // Bật chế độ ngắt render đồ hoạ CoreGraphics/GL
             j2me_render_set_background(1)
         }
         if isTreoActive {
@@ -232,10 +249,17 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         if isAutoCleanRamActive {
             performRamCleanup(completion: nil)
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard let self = self else { return }
+            if self.isAudioRunning {
+                self.endAppBackgroundTask()
+            }
+        }
     }
 
     @objc func onSceneWillEnterForeground() {
         j2me_render_set_background(0)
+        endAppBackgroundTask()
         if isTreoActive {
             startKeepalive()
         }
@@ -266,22 +290,35 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
               let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
 
-        if type == .ended {
+        if type == .began {
+            beginAppBackgroundTask()
+        } else if type == .ended {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 guard let self = self, self.isTreoActive else { return }
-                self.startAudioPipeline(forceRecreate: false)
+                self.startAudioPipeline(forceRecreate: true)
                 self.updateNowPlayingInfo()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                    if self?.isAudioRunning == true {
+                        self?.endAppBackgroundTask()
+                    }
+                }
             }
         }
     }
 
     @objc private func handleRouteChange(_ notification: Notification) {
         guard isTreoActive else { return }
+        beginAppBackgroundTask()
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isTreoActive else { return }
             if !self.isAudioRunning {
                 self.startAudioPipeline(forceRecreate: false)
                 self.updateNowPlayingInfo()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                if self?.isAudioRunning == true {
+                    self?.endAppBackgroundTask()
+                }
             }
         }
     }
@@ -363,8 +400,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private func startAudioPipeline(forceRecreate: Bool) {
         do {
             let session = AVAudioSession.sharedInstance()
-            // Exclusive .playback (KHÔNG dùng .mixWithOthers) để iOS cấp quyền NowPlaying + Jetsam Priority 120!
-            try session.setCategory(.playback, mode: .default, options: [])
+            // .playback kết hợp .mixWithOthers để vừa giữ keepalive 24/7, vừa không bị ngắt khi người dùng nghe Spotify/YouTube/gọi điện
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try session.setActive(true, options: [])
 
             if forceRecreate {
@@ -449,7 +486,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private func startFallbackAudioPlayer() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playback, mode: .default, options: [])
+            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try? session.setActive(true, options: [])
 
             if audioPlayer == nil {
@@ -495,8 +532,14 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             guard let self = self, self.isTreoActive else { return }
             DispatchQueue.main.async {
                 if !self.isAudioRunning {
-                    self.startAudioPipeline(forceRecreate: false)
+                    self.beginAppBackgroundTask()
+                    self.startAudioPipeline(forceRecreate: true)
                     self.updateNowPlayingInfo()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                        if self?.isAudioRunning == true {
+                            self?.endAppBackgroundTask()
+                        }
+                    }
                 }
             }
         }

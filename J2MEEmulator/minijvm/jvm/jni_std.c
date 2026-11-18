@@ -301,6 +301,7 @@ s32 java_lang_Class_getComponentType(Runtime *runtime, JClass *clazz) {
         }
 
         JClass *cl = classes_load_get_with_clinit(other->jloader, ustr, runtime);
+        utf8_destroy(ustr);
         if (cl) {
             push_ref(stack, cl->ins_class);
         } else {

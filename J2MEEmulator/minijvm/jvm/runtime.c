@@ -229,6 +229,7 @@ void getExceptionStack(Runtime *runtime, Utf8String *ustr) {
                 Utf8String *ustr2 = utf8_create();
                 jstring_2_utf8(jstr_detailMessage, ustr2, runtime);
                 utf8_append(ustr, ustr2);
+                utf8_destroy(ustr2);
             }
         }
     }

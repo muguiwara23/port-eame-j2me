@@ -755,6 +755,9 @@ s32 jthread_run(void *para) {
 #endif
     s32 ret = 0;
     runtime->thrd_info->pthread = thrd_current();
+    // CRITICAL on iOS/POSIX: Detach every Java pthread immediately so the OS reclaims its
+    // 512 KB stack & Mach thread port upon exit (prevents permanent 512 KB/thread RAM leak!).
+    thrd_detach(runtime->thrd_info->pthread);
 
     Utf8String *methodName = utf8_create_c("run");
     Utf8String *methodType = utf8_create_c("()V");
@@ -793,6 +796,9 @@ s32 jthread_run(void *para) {
     if (runtime->thrd_info->curThreadLock) {
         jthread_unlock(runtime->thrd_info->curThreadLock, runtime);
     }
+
+    // Transfer any objects allocated on this thread to GC immediately on exit
+    gc_move_objs_thread_2_gc(runtime);
 
     utf8_destroy(methodName);
     utf8_destroy(methodType);

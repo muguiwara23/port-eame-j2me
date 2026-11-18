@@ -57,7 +57,6 @@ public abstract class Canvas extends Displayable {
     // FPS limiting (matches J2ME-Loader's Canvas.limitFps)
     private static int fpsLimit = 30;
     private long lastFrameTime = System.currentTimeMillis();
-    private long lastBackgroundPaintTime = 0;
 
     public static void setLimitFps(int fps) {
         Canvas.fpsLimit = fps > 0 ? fps : 30;
@@ -68,7 +67,9 @@ public abstract class Canvas extends Displayable {
     }
 
     private void limitFps() {
-        int effectiveFps = fpsLimit > 0 ? fpsLimit : 30;
+        boolean inBg = false;
+        try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
+        int effectiveFps = inBg ? 20 : (fpsLimit > 0 ? fpsLimit : 30);
         try {
             long millis = (1000 / effectiveFps) - (System.currentTimeMillis() - lastFrameTime);
             if (millis > 0) Thread.sleep(millis);
@@ -158,6 +159,14 @@ public abstract class Canvas extends Displayable {
                 x >= this.width || y >= this.height) {
             return;
         }
+        boolean inBg = false;
+        try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
+        if (inBg) {
+            if (nativeContext != 0) {
+                NativeBridge.flushToScreen(nativeContext);
+            }
+            return;
+        }
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             graphics.reset(0, 0, this.width, this.height);
@@ -170,6 +179,14 @@ public abstract class Canvas extends Displayable {
     public void flushBuffer(Image image, int x, int y) {
         if (!isShown()) return;
         limitFps();
+        boolean inBg = false;
+        try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
+        if (inBg) {
+            if (nativeContext != 0) {
+                NativeBridge.flushToScreen(nativeContext);
+            }
+            return;
+        }
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             graphics.reset(0, 0, this.width, this.height);
@@ -187,22 +204,19 @@ public abstract class Canvas extends Displayable {
         if (!isShown()) return;
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
-        if (inBg) {
-            repaintPending = false;
-            long now = System.currentTimeMillis();
-            if (now - lastBackgroundPaintTime < 2000L) {
-                // Skip Java paint() bytecode & temporary String/Object churn while screen is locked!
-                // Game update(), auto-farm, skills & TCP socket threads still run at 100% full speed.
-                if (nativeContext != 0) {
-                    NativeBridge.flushToScreen(nativeContext);
-                }
-                return;
-            }
-            lastBackgroundPaintTime = now;
-        }
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             repaintPending = false;
+            if (inBg) {
+                // In background / screen-off mode:
+                // Native drawing operations (drawLine, drawImage, drawString) are instant no-ops.
+                // We call paint(graphics) so the game's internal frame counter and state machine stay perfectly synchronized,
+                // but flushToScreen skips CGImage creation and screen blitting.
+                paint(graphics);
+                NativeBridge.flushToScreen(nativeContext);
+                fullRepaint = true;
+                return;
+            }
             if (fullRepaint) {
                 graphics.reset(0, 0, width, height);
             } else {
