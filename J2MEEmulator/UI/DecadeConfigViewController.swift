@@ -816,20 +816,13 @@ class DecadeConfigViewController: UIViewController {
             object: nil,
             userInfo: [
                 "gid": gid,
-                "treo": treoSwitch.isOn,
-                "cleanRam": autoCleanRamSwitch.isOn,
-                "fillScreen": fillScreenSwitch.isOn,
-                "fps": sFps
-            ]
-        )
-            object: nil,
-            userInfo: [
-                "gid": gid,
                 "width": sSize.w,
                 "height": sSize.h,
                 "scale": sRes,
                 "fps": sFps,
                 "treo": treoSwitch.isOn,
+                "cleanRam": autoCleanRamSwitch.isOn,
+                "fillScreen": fillScreenSwitch.isOn,
                 "sound": soundSwitch.isOn
             ]
         )
