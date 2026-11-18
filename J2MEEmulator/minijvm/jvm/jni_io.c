@@ -328,6 +328,9 @@ s32 org_mini_net_SocketNative_accept0(Runtime *runtime, JClass *clazz) {
                 ret = -1;
                 break;
             } else {
+                if (cltsock->contex.fd >= 0) {
+                    decade_network_optimize_socket(cltsock->contex.fd);
+                }
                 break;
             }
         }

@@ -191,9 +191,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             print(String(format: "[RAM Cleaner] %.1f MB -> %.1f MB", beforeMB, afterMB))
             DispatchQueue.main.async {
                 self.updateNowPlayingInfo()
-                if UIApplication.shared.applicationState != .active {
-                    self.postLockScreenNotification()
-                }
                 if let cb = completion {
                     cb(beforeMB, afterMB)
                 }
@@ -222,7 +219,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         setupRemoteCommandsIfNeeded()
         startAudioPipeline(forceRecreate: false)
         updateNowPlayingInfo()
-        postLockScreenNotification()
         startWatchdog()
     }
 
@@ -233,8 +229,14 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         audioPlayer?.stop()
         audioPlayer = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["decade_bg_status"])
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["decade_bg_status"])
+        clearLockScreenNotification()
+    }
+
+    /// Xóa sạch mọi thông báo chạy ngầm khi vào Foreground hoặc tắt/thoát app
+    func clearLockScreenNotification() {
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: ["decade_bg_status"])
+        center.removePendingNotificationRequests(withIdentifiers: ["decade_bg_status"])
     }
 
     @objc func onSceneWillResignActive() {
@@ -242,34 +244,27 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             // Bảo đảm CoreAudio AURemoteIO + NowPlaying đang chạy TRƯỚC KHI khóa màn hình!
             startAudioPipeline(forceRecreate: false)
             updateNowPlayingInfo()
-            postLockScreenNotification()
         }
     }
 
     @objc func onSceneDidEnterBackground() {
-        beginAppBackgroundTask()
         if !DecadePiPManager.shared.isPiPActive {
             // Bật chế độ ngắt render đồ hoạ CoreGraphics/GL
             j2me_render_set_background(1)
         }
         if isTreoActive {
             startKeepalive()
-            postLockScreenNotification()
+            postLockScreenNotification(force: true)
         }
         if isAutoCleanRamActive {
             performRamCleanup(completion: nil)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
-            guard let self = self else { return }
-            if self.isAudioRunning {
-                self.endAppBackgroundTask()
-            }
         }
     }
 
     @objc func onSceneWillEnterForeground() {
         j2me_render_set_background(0)
         endAppBackgroundTask()
+        clearLockScreenNotification()
         if isTreoActive {
             startKeepalive()
         }
@@ -289,6 +284,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     @objc private func handleAppDidBecomeActive() {
         j2me_render_set_background(0)
+        clearLockScreenNotification()
         if isTreoActive {
             startKeepalive()
         }
@@ -303,33 +299,26 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         if type == .began {
             beginAppBackgroundTask()
         } else if type == .ended {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self = self, self.isTreoActive else { return }
                 self.startAudioPipeline(forceRecreate: true)
                 self.updateNowPlayingInfo()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-                    if self?.isAudioRunning == true {
-                        self?.endAppBackgroundTask()
-                    }
-                }
+                self.endAppBackgroundTask()
             }
         }
     }
 
     @objc private func handleRouteChange(_ notification: Notification) {
         guard isTreoActive else { return }
-        beginAppBackgroundTask()
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isTreoActive else { return }
-            if !self.isAudioRunning {
-                self.startAudioPipeline(forceRecreate: false)
-                self.updateNowPlayingInfo()
+            if self.audioPlayer?.isPlaying != true {
+                self.startFallbackAudioPlayer()
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                if self?.isAudioRunning == true {
-                    self?.endAppBackgroundTask()
-                }
+            if self.audioEngine?.isRunning != true {
+                _ = self.startRealtimeAudioEngine()
             }
+            self.updateNowPlayingInfo()
         }
     }
 
@@ -470,9 +459,19 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    private var lastNotificationPostTime: TimeInterval = 0
+
     /// Đẩy thông báo thẻ trạng thái RAM/CPU/Tab trực tiếp lên thanh thông báo / màn hình khóa khi treo nền
-    func postLockScreenNotification() {
+    func postLockScreenNotification(force: Bool = false) {
         guard isTreoActive else { return }
+
+        let now = Date().timeIntervalSince1970
+        // Throttle updates: Không bao giờ spam thông báo liên tục!
+        // Chỉ post khi mới vào nền (force = true) hoặc ít nhất 5 phút/lần
+        if !force && (now - lastNotificationPostTime) < 300.0 {
+            return
+        }
+        lastNotificationPostTime = now
 
         let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
         let cpu = jvm_bridge_get_cpu_usage_percent()
@@ -491,6 +490,13 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         content.subtitle = "Đang chạy nền"
         content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Tab: \(tabs)\nCập nhật \(timeString)"
         content.sound = nil // Hoàn toàn êm ái, không rung, không phát tiếng làm phiền
+
+        // QUAN TRỌNG: Thiết lập passive để thông báo ghim cố định âm thầm trên màn hình khóa/trung tâm thông báo,
+        // TUYỆT ĐỐI KHÔNG rơi banner popup từ trên xuống ("khong thong bao xuog lien tuục")
+        if #available(iOS 15.0, *) {
+            content.interruptionLevel = .passive
+            content.relevanceScore = 0.0
+        }
 
         let tempDir = FileManager.default.temporaryDirectory
         let imgURL = tempDir.appendingPathComponent("decade_status_card.png")
@@ -536,14 +542,16 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         // Tuyệt đối không dùng UNUserNotificationCenter ở đây để không làm nhảy banner thông báo liên tục!
     }
 
-    /// Khởi động pipeline âm thanh hạ âm 18 Hz (-56 dB):
-    /// Ưu tiên AVAudioEngine + AVAudioSourceNode (CoreAudio hardware callback không ngắt quãng),
-    /// tự động dự phòng sang AVAudioPlayer nếu engine gặp lỗi phần cứng.
+    /// Khởi động pipeline âm thanh kép giữ tiến trình sống 24/7 xuyên suốt không ngắt nghỉ:
+    /// 1. AVAudioPlayer chạy vòng lặp vô tận silent.wav do mediaserverd quản lý độc quyền.
+    /// 2. AVAudioEngine + AVAudioSourceNode hạ âm 18 Hz (-56 dB) phần cứng CoreAudio.
+    /// Kết hợp đồng thời đảm bảo iOS RunningBoard không bao giờ kill tiến trình hay ngắt kết nối socket!
     private func startAudioPipeline(forceRecreate: Bool) {
         do {
             let session = AVAudioSession.sharedInstance()
-            // .playback kết hợp .mixWithOthers để vừa giữ keepalive 24/7, vừa không bị ngắt khi người dùng nghe Spotify/YouTube/gọi điện
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            // .playback kết hợp .mixWithOthers + Bluetooth + AirPlay để vừa giữ keepalive 24/7,
+            // vừa không bị gián đoạn khi người dùng nghe Spotify/YouTube hay đổi tai nghe AirPods
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .allowBluetooth, .allowBluetoothA2DP, .allowAirPlay])
             try session.setActive(true, options: [])
 
             if forceRecreate {
@@ -554,22 +562,17 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
                 audioPlayer = nil
             }
 
-            if audioEngine == nil {
-                if startRealtimeAudioEngine() {
-                    return
-                }
-            } else if let eng = audioEngine {
-                if !eng.isRunning {
-                    try eng.start()
-                    print("[DecadeBackgroundKeeper] AVAudioEngine resumed.")
-                }
-                return
-            }
-
-            // Fallback: AVAudioPlayer playing 16Hz -57dB silent.wav
+            // 1. Luôn kích hoạt AVAudioPlayer chạy nền liên tục (vòng lặp vô tận -1)
             startFallbackAudioPlayer()
+
+            // 2. Kích hoạt song song AVAudioEngine + AVAudioSourceNode hạ âm 18Hz
+            if audioEngine == nil {
+                _ = startRealtimeAudioEngine()
+            } else if let eng = audioEngine, !eng.isRunning {
+                try? eng.start()
+            }
         } catch {
-            print("[DecadeBackgroundKeeper] Audio pipeline error: \(error) — trying fallback player")
+            print("[DecadeBackgroundKeeper] Audio pipeline error: \(error) — ensuring fallback player runs")
             startFallbackAudioPlayer()
         }
     }
@@ -628,7 +631,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private func startFallbackAudioPlayer() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .allowBluetooth, .allowBluetoothA2DP, .allowAirPlay])
             try? session.setActive(true, options: [])
 
             if audioPlayer == nil {
@@ -642,12 +645,12 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
                 audioPlayer = player
                 audioPlayer?.delegate = self
                 audioPlayer?.numberOfLoops = -1
-                audioPlayer?.volume = 1.0
+                audioPlayer?.volume = 0.05
                 audioPlayer?.prepareToPlay()
             }
             if audioPlayer?.isPlaying == false {
                 let ok = audioPlayer?.play() ?? false
-                print("[DecadeBackgroundKeeper] Fallback AVAudioPlayer play=\(ok)")
+                print("[DecadeBackgroundKeeper] Continuous AVAudioPlayer play=\(ok)")
             }
         }
     }
@@ -665,27 +668,25 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    /// Watchdog tần số thấp (10 giây/lần = 0.1 wakeup/giây) đảm bảo audio keepalive luôn chạy.
+    /// Watchdog tần số thấp (10 giây/lần = 0.1 wakeup/giây) đảm bảo audio keepalive luôn chạy xuyên suốt.
     private func startWatchdog() {
         guard watchdogTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
         timer.schedule(deadline: .now() + 10.0, repeating: 10.0)
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isTreoActive else { return }
+
+            // Giữ audio pipeline sống liên tục 24/7 trực tiếp trên hàng đợi nền
+            if self.audioPlayer?.isPlaying != true {
+                print("[DecadeBackgroundKeeper] Watchdog: AudioPlayer not playing, resuming...")
+                self.startFallbackAudioPlayer()
+            }
+            if self.audioEngine?.isRunning != true {
+                _ = self.startRealtimeAudioEngine()
+            }
+
             DispatchQueue.main.async {
-                if !self.isAudioRunning {
-                    self.beginAppBackgroundTask()
-                    self.startAudioPipeline(forceRecreate: true)
-                    self.updateNowPlayingInfo()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
-                        if self?.isAudioRunning == true {
-                            self?.endAppBackgroundTask()
-                        }
-                    }
-                } else {
-                    // Cập nhật số liệu RAM, CPU trên thẻ màn hình khóa MPNowPlayingInfoCenter (hoàn toàn êm ái, không rơi banner)
-                    self.updateNowPlayingInfo()
-                }
+                self.updateNowPlayingInfo()
             }
         }
         timer.resume()

@@ -83,24 +83,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.13-native
-          name: "Vạn Trần J2ME Native iOS v2.13"
+          tag_name: v2.14-native
+          name: "Vạn Trần J2ME Native iOS v2.14"
           body: |
-            ## Vạn Trần J2ME iOS v2.13 — Khôi Phục Thẻ Trạng Thái Treo Nền & Ghim Cố Định Không Spam Banner
+            ## Vạn Trần J2ME iOS v2.14 — Giữ Kết Nối Treo Nền Xuyên Suốt 24/7 & Ghim Thông Báo Cố Định Không Spam
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - 📌 **Khôi Phục & Ghim Cố Định Thẻ Trạng Thái Treo Nền (RAM, CPU, Tab, Giờ Cập Nhật)**:
-              - Hiển thị đầy đủ thẻ dark card cao cấp trên cả Thanh Thông Báo và Màn Hình Khóa khi treo game.
-              - **Đã khắc phục hoàn toàn lỗi rơi thông báo liên tục**: Chỉ kích hoạt thẻ êm ái khi ra nền/khóa máy (`onSceneDidEnterBackground`/`onSceneWillResignActive`), tách biệt hoàn toàn khỏi watchdog 10s để không còn hiện tượng rơi banner thông báo làm phiền.
-              - Tự động tắt banner khi đang ở Foreground (trong game) qua `UNUserNotificationCenterDelegate`.
-            - 🖥️ **Kích Thước Màn Hình "Tự Động" Kín 100% Khung Hình, Không Méo, Không Viền Đen**:
-              - Khớp chính xác tỷ lệ vùng hiển thị thực tế của game sau khi trừ thanh công cụ trên và bàn phím ảo bên dưới.
-              - Tích hợp công tắc **"Kín Màn Hình (Không Viền Đen)"** trong Cài Đặt Game -> Màn Hình.
-              - Tự động phát hiện và áp dụng độ phân giải mới ngay lập tức.
-            - 🎨 **Đồ Họa & Render Ổn Định 120 FPS**:
-              - Khóa cân bằng tầng vẽ CoreGraphics GState (depth = 1), không còn hiện tượng méo ảnh, lộn ngược hoặc đứng hình khi vẽ clip rect phức tạp.
-            - ⚡ **Treo Nền 24/7 Xuyên Ngày Tháng**:
-              - Bộ giữ nhịp âm thanh tần số thấp vô thanh 18Hz kết hợp Watchdog tự động phục hồi kết nối.
-              - Cơ chế dọn dẹp RAM định kỳ (Auto Clean RAM) chống Jetsam kill khi treo dài hạn.
+            - 🌐 **Giữ Kết Nối Mạng Socket 24/7 Xuyên Suốt Không Ngắt Nghỉ**:
+              - Loại bỏ giới hạn ngắt kết nối cưỡng bức `TCP_RXT_CONNDROPTIME` 10s (nguyên nhân gây đứt mạng sau một khoảng thời gian treo nền khi chuyển sóng/ngủ sâu).
+              - Tối ưu TCP Keep-Alive đa tầng (probe 20s, retry 10s, lặp lại 8 lần = 80s chống rớt kết nối NAT di động 4G/5G/Wi-Fi).
+              - Kích hoạt phân lớp ưu tiên luồng mạng thời gian thực `SO_TC_VO` (Voice/Interactive Realtime) ngăn kernel iOS ngắt luồng dữ liệu game khi khóa màn hình.
+            - 🛡️ **Khắc Phục Hoàn Toàn Lỗi Bị Kill App Sau ~1 Giờ Treo Máy**:
+              - Hệ thống Dual-Engine Keep-Alive chuẩn Apple: Kích hoạt đồng thời `AVAudioPlayer` (chạy vòng lặp vô tận trong `mediaserverd` hệ thống, miễn nhiễm với việc ngắt quãng AUHAL và tiết kiệm năng lượng) kết hợp `AVAudioEngine AURemoteIO` 18Hz.
+              - Cấu hình âm thanh `.mixWithOthers`, `.allowBluetooth`, `.allowBluetoothA2DP`, `.allowAirPlay` giúp ứng dụng không bao giờ bị dừng khi cắm/rút tai nghe hay nghe nhạc song song.
+            - 📌 **Thông Báo Ghim Cố Định Âm Thầm (Passive Interruption) & Tự Động Xóa Khi Tắt App**:
+              - Ghim thẻ trạng thái RAM/CPU/Tab cố định trên Màn Hình Khóa & Trung Tâm Thông Báo.
+              - **Tuyệt đối không rơi banner popup**: Thiết lập `interruptionLevel = .passive` không chuông, không rung, không nháy màn hình.
+              - **Đã khắc phục lỗi tắt app vẫn hiện thông báo**: Tự động xóa sạch thẻ thông báo ngay khi tắt/thoát ứng dụng (`applicationWillTerminate`/`sceneDidDisconnect`) hoặc khi quay lại chơi game.
+            - 🖥️ **Màn Hình Tự Động Kín 100%, Không Méo, Không Viền Đen**.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly, TrollStore hoặc 3uTools.
           files: J2ME-Decade.ipa
 

@@ -7,6 +7,7 @@
 
 import UIKit
 import UserNotifications
+import MediaPlayer
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -16,6 +17,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         center.delegate = self
         // Yêu cầu quyền thông báo để hiển thị thẻ trạng thái trên thanh thông báo / màn hình khóa
         center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+
+        // Dọn sạch mọi thông báo cũ từ phiên trước khi khởi động app
+        DecadeBackgroundKeeper.shared.clearLockScreenNotification()
 
         // Khởi động Audio Keep-Alive ngay ở Foreground khi mở app để iOS cấp quyền chạy nền liên tục
         if DecadeBackgroundKeeper.shared.isTreoActive {
@@ -27,6 +31,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     // Khi app đang mở (Foreground), KHÔNG hiển thị banner để tránh làm phiền khi đang chơi game
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         completionHandler([])
+    }
+
+    // Khi người dùng tắt/thoát app (Swipe up kill app), lập tức xóa sạch mọi thông báo chạy ngầm
+    func applicationWillTerminate(_ application: UIApplication) {
+        DecadeBackgroundKeeper.shared.clearLockScreenNotification()
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     // Allow GameViewController to rotate freely while keeping list/config screens portrait

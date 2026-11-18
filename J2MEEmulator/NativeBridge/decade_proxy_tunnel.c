@@ -37,29 +37,32 @@ void decade_network_optimize_socket(int fd) {
     setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (const void *)&keepalive, sizeof(keepalive));
 
 #if defined(__APPLE__) || defined(__MACH__)
-    // Probe after 15 seconds of idle (default on iOS is 7200 seconds!)
-    int keepidle = 15;
+    // Probe after 20 seconds of idle (default on iOS is 7200 seconds!)
+    int keepidle = 20;
     setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, (const void *)&keepidle, sizeof(keepidle));
 
-    // Repeat probe every 5 seconds if unacknowledged
-    int keepintvl = 5;
+    // Repeat probe every 10 seconds if unacknowledged
+    int keepintvl = 10;
     setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (const void *)&keepintvl, sizeof(keepintvl));
 
-    // Drop after 4 unacknowledged probes (20 seconds total)
-    int keepcnt = 4;
+    // Drop after 8 unacknowledged probes (80 seconds total resilience against network jitter)
+    int keepcnt = 8;
     setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (const void *)&keepcnt, sizeof(keepcnt));
-
-    // TCP connection drop time when network changes/drops
-    int drop_time = 10;
-    setsockopt(fd, IPPROTO_TCP, 0x80 /* TCP_RXT_CONNDROPTIME */, &drop_time, sizeof(drop_time));
 
     // Fallback interface: Darwin automatically traverses between Wi-Fi and Cellular
     int fallback = 1;
     setsockopt(fd, SOL_SOCKET, 0x1014 /* SO_FALLBACK_INTERFACE */, &fallback, sizeof(fallback));
+
+    // Traffic Class: Interactive Realtime / Voice (SO_TC_VO)
+    // Informs iOS networking stack to prioritize packets and avoid aggressive radio dormant teardown
+#if defined(SO_TRAFFIC_CLASS)
+    int tc = 0x0004; // SO_TC_VO
+    setsockopt(fd, SOL_SOCKET, SO_TRAFFIC_CLASS, (const void *)&tc, sizeof(tc));
+#endif
 #endif
 
-    // 4. Increase socket buffer sizes to 64KB for smooth data throughput
-    int bufsize = 65536;
+    // 4. Increase socket buffer sizes to 128KB for smooth data throughput
+    int bufsize = 131072;
     setsockopt(fd, SOL_SOCKET, SO_SNDBUF, (const void *)&bufsize, sizeof(bufsize));
     setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (const void *)&bufsize, sizeof(bufsize));
 }
