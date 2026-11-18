@@ -127,10 +127,13 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
 
     // MARK: - Frame Enqueueing
     func updateFrame(_ cgImage: CGImage) {
+        // CRITICAL: Never allocate CVPixelBuffer/IOSurface/CMSampleBuffer when PiP is NOT active!
+        // Previously running 30fps while PiP was off leaked ~65 MB/s of IOSurface memory.
+        guard isPiPActive else { return }
+
         let now = CACurrentMediaTime()
-        // Ensure at least 1 initial frame is sent so PiP can start, then throttle to 30 FPS
         if hasEnqueuedInitialFrame {
-            guard (now - lastFrameTime) >= 0.033 else { return }
+            guard (now - lastFrameTime) >= 0.05 else { return } // 20 FPS max for PiP
         }
         lastFrameTime = now
         hasEnqueuedInitialFrame = true
@@ -138,13 +141,24 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
         guard let sampleBuffer = createSampleBuffer(from: cgImage) else { return }
 
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+            guard let self = self, self.isPiPActive else { return }
             if self.displayLayer.status == .failed {
                 self.displayLayer.flush()
             }
             if self.displayLayer.isReadyForMoreMediaData {
                 self.displayLayer.enqueue(sampleBuffer)
             }
+        }
+    }
+
+    func purgeBuffers() {
+        guard !isPiPActive else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, !self.isPiPActive else { return }
+            self.displayLayer.flush()
+            self.pixelBufferPool = nil
+            self.lastPoolSize = .zero
+            self.hasEnqueuedInitialFrame = false
         }
     }
 
@@ -365,6 +379,7 @@ final class DecadePiPManager: NSObject, AVPictureInPictureControllerDelegate, AV
     }
 
     func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        purgeBuffers()
         onPiPStateChanged?(false)
     }
 

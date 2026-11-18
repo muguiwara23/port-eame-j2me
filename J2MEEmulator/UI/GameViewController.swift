@@ -52,8 +52,10 @@ class GameViewController: UIViewController {
                 }
                 return
             }
-            vc.emulatorView.displayImage(image)
-            DecadePiPManager.shared.updateFrame(image)
+            vc.emulatorView.layer.contents = image
+            if DecadePiPManager.shared.isPiPActive {
+                DecadePiPManager.shared.updateFrame(image)
+            }
             DecadeMiniWindow.shared.updateFrame(image)
             if let icon = vc.placeholderIconView, icon.alpha > 0 {
                 UIView.animate(withDuration: 0.15) { icon.alpha = 0 }
@@ -254,9 +256,9 @@ class GameViewController: UIViewController {
         // NOTE: Double-tap on canvas is deliberately REMOVED so gameplay is never interrupted.
         // The [⌨] button in the top toolbar opens text input when desired.
 
-        // Register native callbacks
+        // Register native callbacks (use slotFlushCallback exclusively to avoid double CGImage flush!)
         setGlobalEmulatorView(emulatorView)
-        j2me_render_set_flush_callback(flushCallback)
+        j2me_render_set_flush_callback(nil)
         j2me_render_set_slot_flush_callback(slotFlushCallback)
         j2me_ui_set_callback(gameUICallback)
         activeGameViewController = self

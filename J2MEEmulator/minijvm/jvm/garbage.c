@@ -1,4 +1,7 @@
 #include <errno.h>
+#if defined(__APPLE__) || defined(__MACH__)
+#include <malloc/malloc.h>
+#endif
 #include "jvm.h"
 #include "garbage.h"
 #include "jvm_util.h"
@@ -594,6 +597,13 @@ s64 _garbage_collect(GcCollector *collector) {
 
 #ifdef MEM_ALLOC_LTALLOC
     jvm_squeeze(0);
+#endif
+#if defined(__APPLE__) || defined(__MACH__)
+    static unsigned int gc_pressure_cnt = 0;
+    gc_pressure_cnt++;
+    if (mem_free > 262144 || (gc_pressure_cnt & 7) == 0) {
+        malloc_zone_pressure_relief(NULL, 0);
+    }
 #endif
     collector->isgc = 0;
     return del;

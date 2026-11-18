@@ -51,6 +51,7 @@ typedef struct RenderContext {
 
 typedef struct RenderImage {
     CGContextRef ctx;
+    CGImageRef cachedImage; // Cached immutable CGImage (eliminates 18,000+ allocs/sec!)
     int width;
     int height;
     int isMutable;
@@ -241,6 +242,9 @@ static inline void img_release(RenderImage *img) {
         atomic_thread_fence(memory_order_acquire);
         untrack_img(img); // remove from live tracking before freeing resources
         int pixels = img->width * img->height * 4;
+        CGImageRef ci = img->cachedImage;
+        img->cachedImage = NULL;
+        if (ci) CGImageRelease(ci);
         CGContextRef ctx = img->ctx;
         img->ctx = NULL;
         if (ctx) CGContextRelease(ctx);
@@ -338,39 +342,43 @@ static RenderImage *createMutableImage(int width, int height) {
 }
 
 static RenderImage *createImageFromData(const uint8_t *data, int length) {
-    RenderImage *img = (RenderImage *)calloc(1, sizeof(RenderImage));
-    atomic_init(&img->refcount, 1);
-    img->isMutable = 0;
+    @autoreleasepool {
+        RenderImage *img = (RenderImage *)calloc(1, sizeof(RenderImage));
+        atomic_init(&img->refcount, 1);
+        img->isMutable = 0;
 
-    CFDataRef cfData = CFDataCreate(NULL, data, length);
-    CGImageSourceRef source = CGImageSourceCreateWithData(cfData, NULL);
-    CFRelease(cfData);
+        CFDataRef cfData = CFDataCreate(NULL, data, length);
+        CGImageSourceRef source = CGImageSourceCreateWithData(cfData, NULL);
+        CFRelease(cfData);
 
-    CGImageRef cgImage = NULL;
-    if (source) {
-        cgImage = CGImageSourceCreateImageAtIndex(source, 0, NULL);
-        CFRelease(source);
+        CGImageRef cgImage = NULL;
+        if (source) {
+            cgImage = CGImageSourceCreateImageAtIndex(source, 0, NULL);
+            CFRelease(source);
+        }
+
+        if (!cgImage) {
+            free(img);
+            return NULL;
+        }
+
+        img->width = (int)CGImageGetWidth(cgImage);
+        img->height = (int)CGImageGetHeight(cgImage);
+
+        CGColorSpaceRef cs = getColorSpace();
+        img->ctx = CGBitmapContextCreate(NULL, img->width, img->height, 8, img->width * 4,
+                                          cs, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+        CGContextClearRect(img->ctx, CGRectMake(0, 0, img->width, img->height));
+        CGContextDrawImage(img->ctx, CGRectMake(0, 0, img->width, img->height), cgImage);
+        CGImageRelease(cgImage);
+
+        // Cache immutable CGImage once (avoids CGBitmapContextCreateImage on every draw!)
+        img->cachedImage = CGBitmapContextCreateImage(img->ctx);
+
+        track_img(img);
+        native_heap_add(img->width * img->height * 4);
+        return img;
     }
-
-    if (!cgImage) {
-        free(img);
-        return NULL;
-    }
-
-    img->width = (int)CGImageGetWidth(cgImage);
-    img->height = (int)CGImageGetHeight(cgImage);
-
-    CGColorSpaceRef cs = getColorSpace();
-    img->ctx = CGBitmapContextCreate(NULL, img->width, img->height, 8, img->width * 4,
-                                      cs, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-    CGContextClearRect(img->ctx, CGRectMake(0, 0, img->width, img->height));
-    CGContextDrawImage(img->ctx, CGRectMake(0, 0, img->width, img->height), cgImage);
-    CGImageRelease(cgImage);
-
-
-    track_img(img);
-    native_heap_add(img->width * img->height * 4);
-    return img;
 }
 
 static void destroyImage(RenderImage *img) {
@@ -409,25 +417,27 @@ static s32 n_flushToScreen(Runtime *runtime, JClass *clazz) {
         return RUNTIME_STATUS_NORMAL;
     }
 
-    JniEnv *env = runtime->jnienv;
-    s64 handle = env->localvar_getLong_2slot(runtime->localvar, 0);
-    RenderContext *rc = rc_acquire(handle);
-    if (rc && (g_flush_callback || g_slot_flush_callback)) {
-        CGImageRef image = CGBitmapContextCreateImage(rc->ctx);
-        int slot = jvm_bridge_get_jvm_slot(runtime->jvm);
+    @autoreleasepool {
+        JniEnv *env = runtime->jnienv;
+        s64 handle = env->localvar_getLong_2slot(runtime->localvar, 0);
+        RenderContext *rc = rc_acquire(handle);
+        if (rc && (g_flush_callback || g_slot_flush_callback)) {
+            CGImageRef image = CGBitmapContextCreateImage(rc->ctx);
+            int slot = jvm_bridge_get_jvm_slot(runtime->jvm);
 
-        if (g_slot_flush_callback) {
-            CFRetain(image);
-            g_slot_flush_callback(slot, image, rc->width, rc->height);
-        }
+            if (g_slot_flush_callback) {
+                CFRetain(image);
+                g_slot_flush_callback(slot, image, rc->width, rc->height);
+            }
 
-        if (g_flush_callback && slot == jvm_bridge_get_focused_slot()) {
-            g_flush_callback(image, rc->width, rc->height);
-        } else {
-            CGImageRelease(image);
+            if (g_flush_callback && slot == jvm_bridge_get_focused_slot()) {
+                g_flush_callback(image, rc->width, rc->height);
+            } else {
+                CGImageRelease(image);
+            }
         }
+        rc_release(rc);
     }
-    rc_release(rc);
     return RUNTIME_STATUS_NORMAL;
 }
 
@@ -678,42 +688,44 @@ static s32 n_drawString(Runtime *runtime, JClass *clazz) {
 
     if (!rc || !jstr || should_skip_screen_draw(rc)) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
 
-    Utf8String *ustr = utf8_create();
-    env->jstring_2_utf8(jstr, ustr, runtime);
-    CFStringRef str = CFStringCreateWithCString(NULL, utf8_cstr(ustr), kCFStringEncodingUTF8);
-    utf8_destroy(ustr);
-    if (!str) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    @autoreleasepool {
+        Utf8String *ustr = utf8_create();
+        env->jstring_2_utf8(jstr, ustr, runtime);
+        CFStringRef str = CFStringCreateWithCString(NULL, utf8_cstr(ustr), kCFStringEncodingUTF8);
+        utf8_destroy(ustr);
+        if (!str) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
 
-    CFMutableDictionaryRef attrs = CFDictionaryCreateMutable(NULL, 3,
-        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionarySetValue(attrs, kCTFontAttributeName, rc->font);
-    CFDictionarySetValue(attrs, kCTForegroundColorFromContextAttributeName, kCFBooleanTrue);
+        CFMutableDictionaryRef attrs = CFDictionaryCreateMutable(NULL, 3,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CFDictionarySetValue(attrs, kCTFontAttributeName, rc->font);
+        CFDictionarySetValue(attrs, kCTForegroundColorFromContextAttributeName, kCFBooleanTrue);
 
-    CFAttributedStringRef attrStr = CFAttributedStringCreate(NULL, str, attrs);
-    CTLineRef line = CTLineCreateWithAttributedString(attrStr);
+        CFAttributedStringRef attrStr = CFAttributedStringCreate(NULL, str, attrs);
+        CTLineRef line = CTLineCreateWithAttributedString(attrStr);
 
-    CGFloat ascent, descent, leading;
-    double textWidth = CTLineGetTypographicBounds(line, &ascent, &descent, &leading);
-    CGFloat textHeight = ascent + descent;
+        CGFloat ascent, descent, leading;
+        double textWidth = CTLineGetTypographicBounds(line, &ascent, &descent, &leading);
+        CGFloat textHeight = ascent + descent;
 
-    CGFloat dx = x, dy = y;
-    if (anchor & 1) dx -= textWidth / 2;
-    if (anchor & 8) dx -= textWidth;
-    if (anchor & 4) dy -= 0;
-    if (anchor & 32) dy -= textHeight;
-    if (anchor == 0 || (anchor & 16)) dy += 0;
+        CGFloat dx = x, dy = y;
+        if (anchor & 1) dx -= textWidth / 2;
+        if (anchor & 8) dx -= textWidth;
+        if (anchor & 4) dy -= 0;
+        if (anchor & 32) dy -= textHeight;
+        if (anchor == 0 || (anchor & 16)) dy += 0;
 
-    CGContextSaveGState(rc->ctx);
-    CGContextTranslateCTM(rc->ctx, dx, dy + ascent);
-    CGContextScaleCTM(rc->ctx, 1.0, -1.0);
-    CGContextSetTextPosition(rc->ctx, 0, 0);
-    CTLineDraw(line, rc->ctx);
-    CGContextRestoreGState(rc->ctx);
+        CGContextSaveGState(rc->ctx);
+        CGContextTranslateCTM(rc->ctx, dx, dy + ascent);
+        CGContextScaleCTM(rc->ctx, 1.0, -1.0);
+        CGContextSetTextPosition(rc->ctx, 0, 0);
+        CTLineDraw(line, rc->ctx);
+        CGContextRestoreGState(rc->ctx);
 
-    CFRelease(line);
-    CFRelease(attrStr);
-    CFRelease(attrs);
-    CFRelease(str);
+        CFRelease(line);
+        CFRelease(attrStr);
+        CFRelease(attrs);
+        CFRelease(str);
+    }
     rc_release(rc);
     return RUNTIME_STATUS_NORMAL;
 }
@@ -726,19 +738,22 @@ static s32 n_getStringWidth(Runtime *runtime, JClass *clazz) {
 
     if (!rc || !jstr) { rc_release(rc); env->push_int(runtime->stack, 0); return RUNTIME_STATUS_NORMAL; }
 
-    Utf8String *ustr = utf8_create();
-    env->jstring_2_utf8(jstr, ustr, runtime);
-    CFStringRef str = CFStringCreateWithCString(NULL, utf8_cstr(ustr), kCFStringEncodingUTF8);
-    utf8_destroy(ustr);
-    if (!str) { rc_release(rc); env->push_int(runtime->stack, 0); return RUNTIME_STATUS_NORMAL; }
+    double w = 0;
+    @autoreleasepool {
+        Utf8String *ustr = utf8_create();
+        env->jstring_2_utf8(jstr, ustr, runtime);
+        CFStringRef str = CFStringCreateWithCString(NULL, utf8_cstr(ustr), kCFStringEncodingUTF8);
+        utf8_destroy(ustr);
+        if (!str) { rc_release(rc); env->push_int(runtime->stack, 0); return RUNTIME_STATUS_NORMAL; }
 
-    CFMutableDictionaryRef attrs = CFDictionaryCreateMutable(NULL, 1,
-        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFDictionarySetValue(attrs, kCTFontAttributeName, rc->font);
-    CFAttributedStringRef attrStr = CFAttributedStringCreate(NULL, str, attrs);
-    CTLineRef line = CTLineCreateWithAttributedString(attrStr);
-    double w = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
-    CFRelease(line); CFRelease(attrStr); CFRelease(attrs); CFRelease(str);
+        CFMutableDictionaryRef attrs = CFDictionaryCreateMutable(NULL, 1,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CFDictionarySetValue(attrs, kCTFontAttributeName, rc->font);
+        CFAttributedStringRef attrStr = CFAttributedStringCreate(NULL, str, attrs);
+        CTLineRef line = CTLineCreateWithAttributedString(attrStr);
+        w = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+        CFRelease(line); CFRelease(attrStr); CFRelease(attrs); CFRelease(str);
+    }
     rc_release(rc);
     env->push_int(runtime->stack, (s32)ceil(w));
     return RUNTIME_STATUS_NORMAL;
@@ -858,14 +873,15 @@ static s32 n_drawImage(Runtime *runtime, JClass *clazz) {
     if (anchor & 2) y -= imgH / 2;
     if (anchor & 32) y -= imgH;
 
-    CGImageRef cgImage = CGBitmapContextCreateImage(img->ctx);
+    CGImageRef cgImage = (!img->isMutable && img->cachedImage) ? img->cachedImage : CGBitmapContextCreateImage(img->ctx);
+    int shouldRelease = (img->isMutable || !img->cachedImage);
     if (cgImage) {
         CGContextSaveGState(rc->ctx);
         CGContextTranslateCTM(rc->ctx, x, y + imgH);
         CGContextScaleCTM(rc->ctx, 1.0, -1.0);
         CGContextDrawImage(rc->ctx, CGRectMake(0, 0, imgW, imgH), cgImage);
         CGContextRestoreGState(rc->ctx);
-        CGImageRelease(cgImage);
+        if (shouldRelease) CGImageRelease(cgImage);
     }
     img_release(img);
     rc_release(rc);
@@ -913,10 +929,11 @@ static s32 n_drawRegion(Runtime *runtime, JClass *clazz) {
     if (anchor & 2) yDst -= outH / 2;
     if (anchor & 32) yDst -= outH;
 
-    CGImageRef fullImage = CGBitmapContextCreateImage(ictx);
+    CGImageRef fullImage = (!img->isMutable && img->cachedImage) ? img->cachedImage : CGBitmapContextCreateImage(ictx);
+    int releaseFull = (img->isMutable || !img->cachedImage);
     if (!fullImage) { img_release(img); rc_release(rc); return RUNTIME_STATUS_NORMAL; }
     CGImageRef subImage = CGImageCreateWithImageInRect(fullImage, CGRectMake(xSrc, ySrc, wSrc, hSrc));
-    CGImageRelease(fullImage);
+    if (releaseFull) CGImageRelease(fullImage);
     if (!subImage) { img_release(img); rc_release(rc); return RUNTIME_STATUS_NORMAL; }
 
     CGContextSaveGState(rctx);
@@ -1310,6 +1327,7 @@ void j2me_render_cleanup(void) {
     int img_count = g_live_img_count;
     for (int i = 0; i < g_live_img_count; i++) {
         RenderImage *img = g_live_img[i];
+        if (img->cachedImage) { CGImageRelease(img->cachedImage); img->cachedImage = NULL; }
         if (img->ctx) { CGContextRelease(img->ctx); img->ctx = NULL; }
         free(img);
     }

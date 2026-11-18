@@ -164,10 +164,11 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         let beforeMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
         URLCache.shared.removeAllCachedResponses()
         GameViewController.purgeInactiveSlotFrames()
+        DecadePiPManager.shared.purgeBuffers()
 
         DispatchQueue.global(qos: .utility).async {
             jvm_bridge_clean_ram()
-            Thread.sleep(forTimeInterval: 0.35)
+            Thread.sleep(forTimeInterval: 0.4)
             jvm_bridge_clean_ram()
             let afterMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
             print(String(format: "[RAM Cleaner] %.1f MB -> %.1f MB", beforeMB, afterMB))
@@ -182,7 +183,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private func startAutoRamCleaner() {
         guard ramCleanTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
-        timer.schedule(deadline: .now() + 120.0, repeating: 120.0)
+        timer.schedule(deadline: .now() + 60.0, repeating: 60.0)
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isAutoCleanRamActive else { return }
             self.performRamCleanup(completion: nil)

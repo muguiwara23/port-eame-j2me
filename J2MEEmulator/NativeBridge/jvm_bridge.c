@@ -130,9 +130,9 @@ int jvm_bridge_init_slot(int slot, const char *res_root, const char *save_root, 
 
     jvm->jdwp_enable = 0;
     jvm->jdwp_suspend_on_start = 0;
-    jvm->max_heap_size = 128 * 1024 * 1024;
-    jvm->garbage_collect_period_ms = 500;
-    jvm->heap_overload_percent = 70;
+    jvm->max_heap_size = 48 * 1024 * 1024;
+    jvm->garbage_collect_period_ms = 1000;
+    jvm->heap_overload_percent = 50;
 
     s32 ret = jvm_init(jvm, (c8 *)bootclasspath, (c8 *)classpath);
     if (ret) {
