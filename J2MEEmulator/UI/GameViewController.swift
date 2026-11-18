@@ -2005,7 +2005,7 @@ class GameViewController: UIViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self = self, !self.isUserInitiatedExit else { return }
             print("[Swift] Auto-reconnecting / restarting game after unexpected exit...")
-            self?.startGame()
+            self.startGame()
         }
     }
 

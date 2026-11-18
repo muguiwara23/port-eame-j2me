@@ -637,7 +637,7 @@ s32 java_lang_Object_wait(Runtime *runtime, JClass *clazz) {
     return ret;
 }
 
-extern int jvm_bridge_get_jvm_slot(MiniJVM *jvm);
+extern int jvm_bridge_get_jvm_slot(void *jvm_ptr);
 extern int jvm_bridge_is_slot_stop_requested(int slot);
 
 s32 java_lang_Runtime_exitInternal(Runtime *runtime, JClass *clazz) {
