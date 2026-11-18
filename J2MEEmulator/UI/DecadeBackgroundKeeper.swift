@@ -191,6 +191,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             print(String(format: "[RAM Cleaner] %.1f MB -> %.1f MB", beforeMB, afterMB))
             DispatchQueue.main.async {
                 self.updateNowPlayingInfo()
+                if UIApplication.shared.applicationState != .active {
+                    self.postLockScreenNotification()
+                }
                 if let cb = completion {
                     cb(beforeMB, afterMB)
                 }
@@ -218,9 +221,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     func startKeepalive() {
         setupRemoteCommandsIfNeeded()
         startAudioPipeline(forceRecreate: false)
-        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         updateNowPlayingInfo()
+        postLockScreenNotification()
         startWatchdog()
     }
 
@@ -231,8 +233,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         audioPlayer?.stop()
         audioPlayer = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["decade_bg_status"])
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["decade_bg_status"])
     }
 
     @objc func onSceneWillResignActive() {
@@ -240,6 +242,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             // Bảo đảm CoreAudio AURemoteIO + NowPlaying đang chạy TRƯỚC KHI khóa màn hình!
             startAudioPipeline(forceRecreate: false)
             updateNowPlayingInfo()
+            postLockScreenNotification()
         }
     }
 
@@ -251,6 +254,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
         if isTreoActive {
             startKeepalive()
+            postLockScreenNotification()
         }
         if isAutoCleanRamActive {
             performRamCleanup(completion: nil)
@@ -464,6 +468,41 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             let footerText = "Cập nhật \(timeString)"
             (footerText as NSString).draw(at: CGPoint(x: 24, y: 172), withAttributes: footerAttrs)
         }
+    }
+
+    /// Đẩy thông báo thẻ trạng thái RAM/CPU/Tab trực tiếp lên thanh thông báo / màn hình khóa khi treo nền
+    func postLockScreenNotification() {
+        guard isTreoActive else { return }
+
+        let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+        let cpu = jvm_bridge_get_cpu_usage_percent()
+        let tabs = GameViewController.activeTabCount
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm:ss"
+        let timeString = formatter.string(from: Date())
+
+        let cardImage = generateNotificationCardImage(ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
+
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "🎮 \(currentGameName)"
+        content.subtitle = "Đang chạy nền"
+        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpuPercent))%   •   Tab: \(tabs)\nCập nhật \(timeString)"
+        content.sound = nil // Hoàn toàn êm ái, không rung, không phát tiếng làm phiền
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let imgURL = tempDir.appendingPathComponent("decade_status_card.png")
+        if let pngData = cardImage.pngData() {
+            try? pngData.write(to: imgURL)
+            if let attachment = try? UNNotificationAttachment(identifier: "status_card", url: imgURL, options: nil) {
+                content.attachments = [attachment]
+            }
+        }
+
+        let req = UNNotificationRequest(identifier: "decade_bg_status", content: content, trigger: nil)
+        center.add(req, withCompletionHandler: nil)
     }
 
     func updateNowPlayingInfo() {

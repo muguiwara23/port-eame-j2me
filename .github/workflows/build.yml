@@ -83,19 +83,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.12-native
-          name: "Vạn Trần J2ME Native iOS v2.12"
+          tag_name: v2.13-native
+          name: "Vạn Trần J2ME Native iOS v2.13"
           body: |
-            ## Vạn Trần J2ME iOS v2.12 — Sửa Triệt Để Kín Màn Hình Tự Động Không Méo & Bật Tắt Viền Đen
+            ## Vạn Trần J2ME iOS v2.13 — Khôi Phục Thẻ Trạng Thái Treo Nền & Ghim Cố Định Không Spam Banner
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
+            - 📌 **Khôi Phục & Ghim Cố Định Thẻ Trạng Thái Treo Nền (RAM, CPU, Tab, Giờ Cập Nhật)**:
+              - Hiển thị đầy đủ thẻ dark card cao cấp trên cả Thanh Thông Báo và Màn Hình Khóa khi treo game.
+              - **Đã khắc phục hoàn toàn lỗi rơi thông báo liên tục**: Chỉ kích hoạt thẻ êm ái khi ra nền/khóa máy (`onSceneDidEnterBackground`/`onSceneWillResignActive`), tách biệt hoàn toàn khỏi watchdog 10s để không còn hiện tượng rơi banner thông báo làm phiền.
+              - Tự động tắt banner khi đang ở Foreground (trong game) qua `UNUserNotificationCenterDelegate`.
             - 🖥️ **Kích Thước Màn Hình "Tự Động" Kín 100% Khung Hình, Không Méo, Không Viền Đen**:
-              - Sửa công thức tính kích thước "Tự Động": Khớp chính xác tỷ lệ vùng hiển thị thực tế của game sau khi trừ đi thanh công cụ trên và bàn phím ảo bên dưới (không còn bị tính nhầm theo toàn bộ chiều cao máy dẫn đến co rúm hình thành vệt hẹp ở giữa).
-              - Tích hợp công tắc **"Kín Màn Hình (Không Viền Đen)"** trong Cài Đặt Game: Tự động co giãn toàn bộ đồ họa vừa khít mép màn hình thiết bị, loại bỏ 100% khoảng đen hai bên.
-              - Tự động phát hiện và cập nhật kích thước tức thì: Khi đổi kích thước hoặc chọn Tự Động trong cài đặt, game tự áp dụng và khởi động lại phiên chơi ngay lập tức không bị giữ lại độ phân giải cũ.
-              - Nhớ chính xác trạng thái Ẩn/Hiện bàn phím ảo theo từng game khi khởi động.
-            - 📌 **Thẻ Trạng Thái Ghim Cố Định Trên Màn Hình Khóa / Thanh Thông Báo (NowPlaying Card)**:
-              - Thẻ trạng thái RAM, CPU, Tab, Giờ cập nhật chuẩn phong cách dark card cao cấp hiển thị cố định, tự động cập nhật số liệu thời gian thực.
-              - **Triệt để chấm dứt hiện tượng rơi/nhảy banner thông báo liên tục**: Cập nhật hoàn toàn êm ái qua `MPNowPlayingInfoCenter`, không spam banner, không làm phiền khi đang dùng máy khác hay lướt web.
+              - Khớp chính xác tỷ lệ vùng hiển thị thực tế của game sau khi trừ thanh công cụ trên và bàn phím ảo bên dưới.
+              - Tích hợp công tắc **"Kín Màn Hình (Không Viền Đen)"** trong Cài Đặt Game -> Màn Hình.
+              - Tự động phát hiện và áp dụng độ phân giải mới ngay lập tức.
             - 🎨 **Đồ Họa & Render Ổn Định 120 FPS**:
               - Khóa cân bằng tầng vẽ CoreGraphics GState (depth = 1), không còn hiện tượng méo ảnh, lộn ngược hoặc đứng hình khi vẽ clip rect phức tạp.
             - ⚡ **Treo Nền 24/7 Xuyên Ngày Tháng**:
