@@ -38,6 +38,11 @@ class GameViewController: UIViewController {
     static var slotFrames: [Int: CGImage] = [:]
     static let slotFrameLock = NSLock()
 
+    static var activeTabCount: Int {
+        guard let vc = activeGameViewController else { return 1 }
+        return max(1, vc.tabButtons.count)
+    }
+
     static func updateSlotFrame(slot: Int, image: CGImage) {
         slotFrameLock.lock()
         slotFrames[slot] = image

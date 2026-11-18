@@ -69,14 +69,21 @@ public abstract class Canvas extends Displayable {
     private void limitFps() {
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
-        int effectiveFps = inBg ? 20 : (fpsLimit > 0 ? fpsLimit : 30);
-        try {
-            long millis = (1000 / effectiveFps) - (System.currentTimeMillis() - lastFrameTime);
-            if (millis > 0) Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if (inBg) {
+            try {
+                long millis = 50L - (System.currentTimeMillis() - lastFrameTime);
+                if (millis > 0) Thread.sleep(millis);
+            } catch (InterruptedException ignored) {}
+            lastFrameTime = System.currentTimeMillis();
+            return;
         }
-        lastFrameTime = System.currentTimeMillis();
+        if (fpsLimit > 0) {
+            try {
+                long millis = (1000L / fpsLimit) - (System.currentTimeMillis() - lastFrameTime);
+                if (millis > 0) Thread.sleep(millis);
+            } catch (InterruptedException ignored) {}
+            lastFrameTime = System.currentTimeMillis();
+        }
     }
 
     /**
@@ -93,7 +100,6 @@ public abstract class Canvas extends Displayable {
 
     public void repaint(int x, int y, int w, int h) {
         if (!isShown()) return;
-        limitFps();
         if (!repaintPending) {
             // First repaint request — set clip to this rect
             clipX = x;
@@ -153,7 +159,6 @@ public abstract class Canvas extends Displayable {
     // Synchronized on paintLock to prevent concurrent CGContext access.
     public void flushBuffer(Image image, int x, int y, int width, int height) {
         if (!isShown()) return;
-        limitFps();
         if (width <= 0 || height <= 0 ||
                 x + width < 0 || y + height < 0 ||
                 x >= this.width || y >= this.height) {
@@ -178,7 +183,6 @@ public abstract class Canvas extends Displayable {
     // ExtendedImage (Siemens) — copy image to Canvas context at position and flush.
     public void flushBuffer(Image image, int x, int y) {
         if (!isShown()) return;
-        limitFps();
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
         if (inBg) {
@@ -202,21 +206,12 @@ public abstract class Canvas extends Displayable {
      */
     public void doPaint() {
         if (!isShown()) return;
+        limitFps();
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             repaintPending = false;
-            if (inBg) {
-                // In background / screen-off mode:
-                // Native drawing operations (drawLine, drawImage, drawString) are instant no-ops.
-                // We call paint(graphics) so the game's internal frame counter and state machine stay perfectly synchronized,
-                // but flushToScreen skips CGImage creation and screen blitting.
-                paint(graphics);
-                NativeBridge.flushToScreen(nativeContext);
-                fullRepaint = true;
-                return;
-            }
             if (fullRepaint) {
                 graphics.reset(0, 0, width, height);
             } else {

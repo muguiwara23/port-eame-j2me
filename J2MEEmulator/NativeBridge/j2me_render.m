@@ -217,12 +217,12 @@ static inline void rc_release(RenderContext *rc) {
         int pixels = rc->ownsPixels ? rc->width * rc->height * 4 : 0;
         CGContextRef ctx = rc->ctx;
         CTFontRef font = __atomic_exchange_n(&rc->font, NULL, __ATOMIC_ACQ_REL);
-        int wasSharedClipped = (!rc->ownsPixels && rc->clipSaved);
+        int isOwner = rc->ownsPixels;
         rc->ctx = NULL;
         rc->clipSaved = 0;
         rc->ownsPixels = 0;
         if (ctx) {
-            if (wasSharedClipped) {
+            if (isOwner) {
                 CGContextRestoreGState(ctx);
             }
             CGContextRelease(ctx);
@@ -256,7 +256,12 @@ static inline void img_release(RenderImage *img) {
         if (ci) CGImageRelease(ci);
         CGContextRef ctx = img->ctx;
         img->ctx = NULL;
-        if (ctx) CGContextRelease(ctx);
+        if (ctx) {
+            if (img->isMutable) {
+                CGContextRestoreGState(ctx);
+            }
+            CGContextRelease(ctx);
+        }
         if (pixels > 0) native_heap_sub(pixels);
         enqueue_dead_img(img);
     }
@@ -316,6 +321,7 @@ static RenderContext *createRenderContext(int width, int height) {
                                      cs, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
     CGContextTranslateCTM(rc->ctx, 0, height);
     CGContextScaleCTM(rc->ctx, 1.0, -1.0);
+    CGContextSaveGState(rc->ctx); // Save base state (CTM) at depth 1 for safe clip rewinds
 
     CGContextSetLineWidth(rc->ctx, 1.0);
     CGContextSetLineCap(rc->ctx, kCGLineCapSquare);
@@ -356,6 +362,7 @@ static RenderImage *createMutableImage(int width, int height) {
     CGContextClearRect(img->ctx, CGRectMake(0, 0, width, height));
     CGContextTranslateCTM(img->ctx, 0, height);
     CGContextScaleCTM(img->ctx, 1.0, -1.0);
+    CGContextSaveGState(img->ctx); // Save base state (CTM) at depth 1 for safe clip rewinds
     CGContextSetLineWidth(img->ctx, 1.0);
     CGContextSetLineCap(img->ctx, kCGLineCapSquare);
     CGContextSetLineJoin(img->ctx, kCGLineJoinMiter);
@@ -490,15 +497,13 @@ static s32 n_setClip(Runtime *runtime, JClass *clazz) {
     if (w < 0) w = 0;
     if (h < 0) h = 0;
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
-        if (rc->clipSaved) {
-            CGContextRestoreGState(rc->ctx);
-        }
+    if (rc && rc->ctx) {
+        // Base state was saved at depth 1 on context creation.
+        // Always restore back to base state, then push fresh GState for this clip (keeps stack depth strictly == 1).
+        CGContextRestoreGState(rc->ctx);
         CGContextSaveGState(rc->ctx);
-        rc->clipSaved = 1;
         CGContextClipToRect(rc->ctx, CGRectMake(x, y, w, h));
         // Per J2ME MIDP 2.0 spec, setClip() MUST NOT alter current color or stroke style.
-        // CGContextRestoreGState() reverts them to the pre-clip state, so re-apply them now.
         setColorFromARGB(rc->ctx, rc->currentArgb);
         applyStrokeStyle(rc->ctx, rc->strokeStyle);
     }

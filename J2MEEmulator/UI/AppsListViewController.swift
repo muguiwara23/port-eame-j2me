@@ -662,9 +662,20 @@ class AppsListViewController: UIViewController,
 
     static func resolution(for app: AppInfo) -> (w: Int, h: Int) {
         let gid = gameId(for: app)
-        let w = UserDefaults.standard.object(forKey: "resW_\(gid)") as? Int ?? 240
-        let h = UserDefaults.standard.object(forKey: "resH_\(gid)") as? Int ?? 320
-        return (w, h)
+        let w = UserDefaults.standard.object(forKey: "resW_\(gid)") as? Int ?? 0
+        let h = UserDefaults.standard.object(forKey: "resH_\(gid)") as? Int ?? 0
+        if w > 0 && h > 0 {
+            return (w, h)
+        }
+        // "Tự Động": Kín màn hình thiết bị, giữ nguyên tỷ lệ KHÔNG MÉO
+        let scale = UserDefaults.standard.object(forKey: "res_scale_\(gid)") as? Int ?? 360
+        let baseW = scale > 0 ? scale : 360
+        let screen = UIScreen.main.bounds
+        let sw = max(1.0, min(screen.width, screen.height))
+        let sh = max(1.0, max(screen.width, screen.height))
+        var autoH = Int((Double(baseW) * (sh / sw)).rounded())
+        if autoH % 2 != 0 { autoH += 1 }
+        return (baseW, autoH)
     }
 
     private static func setResolution(w: Int, h: Int, for app: AppInfo) {

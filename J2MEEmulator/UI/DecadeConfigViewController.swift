@@ -112,12 +112,10 @@ class DecadeConfigViewController: UIViewController {
     @objc private func backTapped() {
         saveValues()
         if let onStart = onStartGame {
-            let size = screenSizes[selectedScreenSizeIndex]
-            let w = size.w > 0 ? size.w : 240
-            let h = size.h > 0 ? size.h : 320
+            let res = AppsListViewController.resolution(for: app)
             let fps = fpsOptions[selectedFpsIndex]
             dismiss(animated: true) {
-                onStart(w, h, fps)
+                onStart(res.w, res.h, fps)
             }
         } else if presentingViewController != nil {
             dismiss(animated: true)

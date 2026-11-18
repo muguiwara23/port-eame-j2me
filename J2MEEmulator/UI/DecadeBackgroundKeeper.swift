@@ -18,6 +18,7 @@
 import UIKit
 import AVFoundation
 import MediaPlayer
+import UserNotifications
 
 final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     static let shared = DecadeBackgroundKeeper()
@@ -188,8 +189,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             jvm_bridge_clean_ram()
             let afterMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
             print(String(format: "[RAM Cleaner] %.1f MB -> %.1f MB", beforeMB, afterMB))
-            if let cb = completion {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                self.updateNowPlayingInfo()
+                if let cb = completion {
                     cb(beforeMB, afterMB)
                 }
             }
@@ -376,22 +378,141 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         center.previousTrackCommand.isEnabled = false
     }
 
-    private func updateNowPlayingInfo() {
+    /// Tạo ảnh thẻ thông tin trạng thái treo nền (RAM, CPU, Tab, Đang chạy nền) chuẩn như GaEmulator
+    func generateNotificationCardImage(ramMB: Double, cpuPercent: Double, tabCount: Int, timeString: String) -> UIImage {
+        let size = CGSize(width: 480, height: 210)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            let cg = ctx.cgContext
+
+            // 1. Nền thẻ bo góc đen xám hiện đại (#12161E)
+            let rect = CGRect(origin: .zero, size: size)
+            let path = UIBezierPath(roundedRect: rect, cornerRadius: 24)
+            UIColor(red: 0.07, green: 0.09, blue: 0.12, alpha: 1.0).setFill()
+            path.fill()
+
+            // Viền mỏng tinh tế (#21262D)
+            UIColor(red: 0.20, green: 0.24, blue: 0.30, alpha: 1.0).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+
+            // 2. Header: 🎮 Tên Game (Trái) & "Đang chạy nền" (Xanh lá - Phải)
+            let headerFont = UIFont.systemFont(ofSize: 19, weight: .bold)
+            let headerAttrs: [NSAttributedString.Key: Any] = [
+                .font: headerFont,
+                .foregroundColor: UIColor.white
+            ]
+            let headerText = "🎮 \(currentGameName)"
+            (headerText as NSString).draw(at: CGPoint(x: 24, y: 18), withAttributes: headerAttrs)
+
+            let statusFont = UIFont.systemFont(ofSize: 15, weight: .semibold)
+            let statusAttrs: [NSAttributedString.Key: Any] = [
+                .font: statusFont,
+                .foregroundColor: UIColor(red: 0.18, green: 0.80, blue: 0.44, alpha: 1.0)
+            ]
+            let statusText = "Đang chạy nền"
+            let statusSize = (statusText as NSString).size(withAttributes: statusAttrs)
+            (statusText as NSString).draw(at: CGPoint(x: size.width - statusSize.width - 24, y: 20), withAttributes: statusAttrs)
+
+            // Đường kẻ ngang phân cách mỏng
+            cg.setStrokeColor(UIColor(red: 0.16, green: 0.20, blue: 0.26, alpha: 0.8).cgColor)
+            cg.setLineWidth(1.0)
+            cg.move(to: CGPoint(x: 24, y: 56))
+            cg.addLine(to: CGPoint(x: size.width - 24, y: 56))
+            cg.strokePath()
+
+            // 3. 3 Cột chỉ số: RAM, CPU, Tab
+            let colWidth = (size.width - 48) / 3.0
+            let labelFont = UIFont.systemFont(ofSize: 13, weight: .medium)
+            let labelAttrs: [NSAttributedString.Key: Any] = [
+                .font: labelFont,
+                .foregroundColor: UIColor(red: 0.55, green: 0.60, blue: 0.68, alpha: 1.0)
+            ]
+            let valueFont = UIFont.monospacedDigitSystemFont(ofSize: 26, weight: .bold)
+            let valueAttrs: [NSAttributedString.Key: Any] = [
+                .font: valueFont,
+                .foregroundColor: UIColor.white
+            ]
+
+            // Cột 1: RAM
+            ("RAM" as NSString).draw(at: CGPoint(x: 24, y: 68), withAttributes: labelAttrs)
+            let ramStr = "\(Int(ramMB)) MB"
+            (ramStr as NSString).draw(at: CGPoint(x: 24, y: 92), withAttributes: valueAttrs)
+
+            // Cột 2: CPU
+            let col2X = 24 + colWidth
+            ("CPU" as NSString).draw(at: CGPoint(x: col2X, y: 68), withAttributes: labelAttrs)
+            let cpuStr = "\(Int(cpuPercent))%"
+            (cpuStr as NSString).draw(at: CGPoint(x: col2X, y: 92), withAttributes: valueAttrs)
+
+            // Cột 3: Tab
+            let col3X = 24 + colWidth * 2
+            ("Tab" as NSString).draw(at: CGPoint(x: col3X, y: 68), withAttributes: labelAttrs)
+            let tabStr = "\(tabCount)"
+            (tabStr as NSString).draw(at: CGPoint(x: col3X, y: 92), withAttributes: valueAttrs)
+
+            // 4. Footer: Cập nhật giờ phút giây
+            let footerFont = UIFont.systemFont(ofSize: 12, weight: .regular)
+            let footerAttrs: [NSAttributedString.Key: Any] = [
+                .font: footerFont,
+                .foregroundColor: UIColor(red: 0.45, green: 0.50, blue: 0.58, alpha: 1.0)
+            ]
+            let footerText = "Cập nhật \(timeString)"
+            (footerText as NSString).draw(at: CGPoint(x: 24, y: 172), withAttributes: footerAttrs)
+        }
+    }
+
+    /// Đẩy thông báo thẻ trạng thái RAM/CPU/Tab trực tiếp lên thanh thông báo / màn hình khóa
+    private func postLockScreenNotification(cardImage: UIImage, ramMB: Double, cpuPercent: Double, tabCount: Int, timeString: String) {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "🎮 \(currentGameName)"
+        content.subtitle = "Đang chạy nền"
+        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpuPercent))%   •   Tab: \(tabCount)\nCập nhật \(timeString)"
+        content.sound = nil // Cập nhật êm ái, không làm phiền
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let imgURL = tempDir.appendingPathComponent("decade_status_card.png")
+        if let pngData = cardImage.pngData() {
+            try? pngData.write(to: imgURL)
+            if let attachment = try? UNNotificationAttachment(identifier: "status_card", url: imgURL, options: nil) {
+                content.attachments = [attachment]
+            }
+        }
+
+        let req = UNNotificationRequest(identifier: "decade_bg_status", content: content, trigger: nil)
+        center.add(req, withCompletionHandler: nil)
+    }
+
+    func updateNowPlayingInfo() {
+        let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+        let cpu = jvm_bridge_get_cpu_usage_percent()
+        let tabs = GameViewController.activeTabCount
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm:ss"
+        let timeString = formatter.string(from: Date())
+
+        let cardImage = generateNotificationCardImage(ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
+
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: "Đang treo: \(currentGameName)",
-            MPMediaItemPropertyArtist: "J2ME Decade • Giữ kết nối 24/7",
+            MPMediaItemPropertyTitle: "\(Int(ramMB)) MB RAM  •  \(Int(cpu))% CPU  •  Tab \(tabs)",
+            MPMediaItemPropertyArtist: "\(currentGameName) • Đang chạy nền",
+            MPMediaItemPropertyAlbumTitle: "Cập nhật \(timeString)",
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
         ]
-        if let appIcon = UIImage(named: "AppIcon") {
-            let artwork = MPMediaItemArtwork(boundsSize: appIcon.size) { _ in appIcon }
-            info[MPMediaItemPropertyArtwork] = artwork
-        }
+        let artwork = MPMediaItemArtwork(boundsSize: cardImage.size) { _ in cardImage }
+        info[MPMediaItemPropertyArtwork] = artwork
+
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         if #available(iOS 13.0, *) {
             MPNowPlayingInfoCenter.default().playbackState = .playing
         }
+
+        postLockScreenNotification(cardImage: cardImage, ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
     }
 
     /// Khởi động pipeline âm thanh hạ âm 18 Hz (-56 dB):
