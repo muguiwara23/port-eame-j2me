@@ -98,9 +98,16 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần quyền vị trí để duy trì kết nối mạng chạy ngầm cho trò chơi khi tắt màn hình.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần quyền vị trí ngầm để duy trì kết nối trò chơi liên tục 24/7 siêu tiết kiệm pin mà không cần phát âm thanh.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Ứng dụng cần quyền vị trí ngầm để duy trì kết nối trò chơi liên tục 24/7 siêu tiết kiệm pin mà không cần phát âm thanh.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>location</string>
 	</array>
 </dict>
 </plist>

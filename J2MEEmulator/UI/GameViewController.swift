@@ -148,6 +148,7 @@ class GameViewController: UIViewController {
     private var keypadCurrentHeight: CGFloat = 280
     private var autoShutdownTimer: Timer?
     private var statsTimer: Timer?
+    private var isUserInitiatedExit = false
 
     init(jarPath: String, appName: String, appIcon: UIImage,
          canvasWidth: Int = 240, canvasHeight: Int = 320,
@@ -1973,18 +1974,44 @@ class GameViewController: UIViewController {
     // ============================================================
 
     private func startGame() {
+        isUserInitiatedExit = false
         // Tự động kích hoạt chạy nền liên tục chuẩn NowPlaying/MediaPlayback và giữ kết nối không bị ngắt
         DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: appName)
         DecadeBackgroundKeeper.shared.setTreoActive(true)
         UIApplication.shared.isIdleTimerDisabled = true
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.runMIDlet()
+            guard let self = self else { return }
+            self.runMIDlet()
             DispatchQueue.main.async {
-                if self?.presentingViewController != nil {
-                    self?.dismiss(animated: true)
+                if self.isUserInitiatedExit {
+                    if self.presentingViewController != nil {
+                        self.dismiss(animated: true)
+                    }
+                } else {
+                    print("[Swift] MIDlet finished unexpectedly while hanging (user did not tap Back)!")
+                    self.handleUnexpectedGameExit()
                 }
             }
+        }
+    }
+
+    private func handleUnexpectedGameExit() {
+        DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: "\(appName) (Đã ngắt)")
+
+        let alert = UIAlertController(
+            title: "⚠️ Trò chơi đã ngắt kết nối",
+            message: "Game \"\(appName)\" đã dừng hoặc mất kết nối với máy chủ khi đang treo.\nBạn muốn vào lại game ngay không?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "🔄 Vào lại game ngay", style: .default) { [weak self] _ in
+            self?.startGame()
+        })
+        alert.addAction(UIAlertAction(title: "Thoát ra danh sách", style: .destructive) { [weak self] _ in
+            self?.backTapped()
+        })
+        if self.presentedViewController == nil {
+            self.present(alert, animated: true)
         }
     }
 
@@ -2018,6 +2045,7 @@ class GameViewController: UIViewController {
     }
 
     @objc private func backTapped() {
+        isUserInitiatedExit = true
         backButton.isEnabled = false
         autoShutdownTimer?.invalidate()
         autoShutdownTimer = nil

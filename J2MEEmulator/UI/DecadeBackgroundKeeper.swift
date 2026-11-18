@@ -19,6 +19,103 @@ import UIKit
 import AVFoundation
 import MediaPlayer
 import UserNotifications
+import CoreLocation
+
+// ============================================================
+// MARK: - Decade Location Keep-Alive (Định Vị BTS 0% Hao Pin GPS)
+// ============================================================
+
+final class DecadeLocationKeeper: NSObject, CLLocationManagerDelegate {
+    static let shared = DecadeLocationKeeper()
+
+    private var locationManager: CLLocationManager?
+    private(set) var isRunning = false
+
+    /// Mặc định kích hoạt chế độ Định Vị BTS tiết kiệm pin (True) theo yêu cầu người dùng
+    var isLocationModeActive: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: "decade_use_location_keepalive") == nil {
+                return true // Mặc định bật chế độ Định Vị BTS
+            }
+            return UserDefaults.standard.bool(forKey: "decade_use_location_keepalive")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "decade_use_location_keepalive")
+            if newValue {
+                start()
+            } else {
+                stop()
+            }
+        }
+    }
+
+    private func setupLocationManager() {
+        guard locationManager == nil else { return }
+        let manager = CLLocationManager()
+        manager.delegate = self
+        // Độ chính xác 3km: Chỉ dựa vào trạm sóng di động BTS, TẮT HOÀN TOÀN chip GPS vệ tinh (0% hao pin GPS)
+        manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+        manager.distanceFilter = 999999.0
+        manager.pausesLocationUpdatesAutomatically = false
+        if #available(iOS 9.0, *) {
+            manager.allowsBackgroundLocationUpdates = true
+        }
+        if #available(iOS 11.0, *) {
+            manager.showsBackgroundLocationIndicator = false
+        }
+        self.locationManager = manager
+    }
+
+    func requestPermissionIfNeeded() {
+        setupLocationManager()
+        let status: CLAuthorizationStatus
+        if #available(iOS 14.0, *) {
+            status = locationManager?.authorizationStatus ?? .notDetermined
+        } else {
+            status = CLLocationManager.authorizationStatus()
+        }
+        if status == .notDetermined {
+            locationManager?.requestAlwaysAuthorization()
+        }
+    }
+
+    func start() {
+        setupLocationManager()
+        guard let manager = locationManager else { return }
+        let status: CLAuthorizationStatus
+        if #available(iOS 14.0, *) {
+            status = manager.authorizationStatus
+        } else {
+            status = CLLocationManager.authorizationStatus()
+        }
+        if status == .notDetermined {
+            manager.requestAlwaysAuthorization()
+        }
+        manager.startUpdatingLocation()
+        isRunning = true
+        print("[DecadeLocationKeeper] Started BTS Location Keepalive (0% GPS power, No Audio)")
+    }
+
+    func stop() {
+        locationManager?.stopUpdatingLocation()
+        isRunning = false
+        print("[DecadeLocationKeeper] Stopped BTS Location Keepalive")
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        // Tín hiệu định vị trạm BTS giữ tiến trình sống liên tục
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // Bỏ qua lỗi định vị
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if isLocationModeActive {
+            manager.startUpdatingLocation()
+        }
+    }
+}
 
 final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     static let shared = DecadeBackgroundKeeper()
@@ -217,19 +314,35 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     func startKeepalive() {
         setupRemoteCommandsIfNeeded()
-        startAudioPipeline(forceRecreate: false)
+
+        if DecadeLocationKeeper.shared.isLocationModeActive {
+            // Chế độ Định Vị BTS Tiết Kiệm Pin:
+            // TẮT HOÀN TOÀN âm thanh (không phát AVAudioPlayer / AVAudioEngine)
+            stopAudioPipeline()
+            DecadeLocationKeeper.shared.start()
+        } else {
+            // Chế độ Âm thanh:
+            DecadeLocationKeeper.shared.stop()
+            startAudioPipeline(forceRecreate: false)
+        }
+
         updateNowPlayingInfo()
         startWatchdog()
     }
 
     func stopKeepalive() {
+        DecadeLocationKeeper.shared.stop()
+        stopAudioPipeline()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        clearLockScreenNotification()
+    }
+
+    private func stopAudioPipeline() {
         audioEngine?.stop()
         audioEngine = nil
         sourceNode = nil
         audioPlayer?.stop()
         audioPlayer = nil
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        clearLockScreenNotification()
     }
 
     /// Xóa sạch mọi thông báo chạy ngầm khi vào Foreground hoặc tắt/thoát app
@@ -241,8 +354,12 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     @objc func onSceneWillResignActive() {
         if isTreoActive {
-            // Bảo đảm CoreAudio AURemoteIO + NowPlaying đang chạy TRƯỚC KHI khóa màn hình!
-            startAudioPipeline(forceRecreate: false)
+            if DecadeLocationKeeper.shared.isLocationModeActive {
+                stopAudioPipeline()
+                DecadeLocationKeeper.shared.start()
+            } else {
+                startAudioPipeline(forceRecreate: false)
+            }
             updateNowPlayingInfo()
         }
     }
@@ -511,6 +628,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         center.add(req, withCompletionHandler: nil)
     }
 
+    private var cachedCardImage: UIImage?
+    private var lastCardImageRenderTime: TimeInterval = 0
+
     func updateNowPlayingInfo() {
         let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
         let cpu = jvm_bridge_get_cpu_usage_percent()
@@ -521,12 +641,20 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         formatter.dateFormat = "HH:mm:ss"
         let timeString = formatter.string(from: Date())
 
-        let cardImage = generateNotificationCardImage(ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
+        let now = Date().timeIntervalSince1970
+        let cardImage: UIImage
+        if let cached = cachedCardImage, (now - lastCardImageRenderTime) < 60.0 {
+            cardImage = cached
+        } else {
+            cardImage = generateNotificationCardImage(ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
+            cachedCardImage = cardImage
+            lastCardImageRenderTime = now
+        }
 
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: "🎮 \(currentGameName)",
             MPMediaItemPropertyArtist: "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Tab: \(tabs)",
-            MPMediaItemPropertyAlbumTitle: "Đang chạy nền   •   Cập nhật \(timeString)",
+            MPMediaItemPropertyAlbumTitle: DecadeLocationKeeper.shared.isLocationModeActive ? "Định vị BTS ngầm (0% pin)   •   Cập nhật \(timeString)" : "Đang chạy nền   •   Cập nhật \(timeString)",
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
@@ -666,7 +794,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    /// Watchdog tần số thấp (10 giây/lần = 0.1 wakeup/giây) đảm bảo audio keepalive luôn chạy xuyên suốt.
+    /// Watchdog tần số thấp (10 giây/lần = 0.1 wakeup/giây) đảm bảo keepalive luôn chạy xuyên suốt.
     private func startWatchdog() {
         guard watchdogTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
@@ -674,13 +802,19 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isTreoActive else { return }
 
-            // Giữ audio pipeline sống liên tục 24/7 trực tiếp trên hàng đợi nền
-            if self.audioPlayer?.isPlaying != true {
-                print("[DecadeBackgroundKeeper] Watchdog: AudioPlayer not playing, resuming...")
-                self.startFallbackAudioPlayer()
-            }
-            if self.audioEngine?.isRunning != true {
-                _ = self.startRealtimeAudioEngine()
+            if DecadeLocationKeeper.shared.isLocationModeActive {
+                if !DecadeLocationKeeper.shared.isRunning {
+                    DecadeLocationKeeper.shared.start()
+                }
+            } else {
+                // Giữ audio pipeline sống liên tục 24/7 trực tiếp trên hàng đợi nền nếu ở chế độ Audio
+                if self.audioPlayer?.isPlaying != true {
+                    print("[DecadeBackgroundKeeper] Watchdog: AudioPlayer not playing, resuming...")
+                    self.startFallbackAudioPlayer()
+                }
+                if self.audioEngine?.isRunning != true {
+                    _ = self.startRealtimeAudioEngine()
+                }
             }
 
             DispatchQueue.main.async {

@@ -83,23 +83,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.15-native
-          name: "Vạn Trần J2ME Native iOS v2.15"
+          tag_name: v2.16-native
+          name: "Vạn Trần J2ME Native iOS v2.16"
           body: |
-            ## Vạn Trần J2ME iOS v2.15 — Giữ Kết Nối Treo Nền Xuyên Suốt 24/7 & Ghim Thông Báo Cố Định Không Spam
+            ## Vạn Trần J2ME iOS v2.16 — Treo Định Vị BTS (0% Pin, Không Cần Audio) & Chống Out Game
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
+            - 📍 **Chế Độ Treo Định Vị BTS Tiết Kiệm Pin Tối Đa (0% Pin, Không Cần Âm Thanh)**:
+              - Sử dụng chế độ chạy nền định vị trạm sóng di động BTS (`kCLLocationAccuracyThreeKilometers`).
+              - **TẮT HOÀN TOÀN** chip phần cứng GPS vệ tinh (0% hao pin định vị vệ tinh).
+              - **TẮT HOÀN TOÀN** âm thanh audio keepalive (`AVAudioPlayer` & `AVAudioEngine`), giải phóng hoàn toàn chip xử lý âm thanh DAC để tiết kiệm pin tối đa.
+            - 🛡️ **Khắc Phục Triệt Để Lỗi Bị Out Game Về Danh Sách Khi Đang Treo (Anti-Dismiss & Anti-Exit)**:
+              - **Chặn lệnh tự hủy khi ở nền**: Tự động bỏ qua lệnh `notifyDestroyed()` từ game mod khi app đang tắt màn hình/chạy ngầm, không để game tự đóng khi mạng lag hay timeout.
+              - **Khóa tự đóng giao diện (Anti-Dismiss)**: Chỉ đóng game khi người dùng trực tiếp bấm nút "Thoát / Back". Không bao giờ tự động văng về màn hình danh sách ngoài.
+              - **Bọc an toàn luồng sự kiện (Event Loop)**: Bọc `try-catch` toàn diện cho đồ họa và chống ngắt luồng `InterruptedException` khi dọn dẹp RAM/GC.
+              - **Hộp thoại khôi phục game thông minh**: Nếu game dừng do mất kết nối máy chủ, giữ nguyên màn hình và hiển thị nút "Vào lại game ngay" tiện lợi.
             - 🌐 **Giữ Kết Nối Mạng Socket 24/7 Xuyên Suốt Không Ngắt Nghỉ**:
-              - Gỡ bỏ hoàn toàn cờ `TCP_RXT_CONNDROPTIME` 10s (nguyên nhân chính khiến game bị ngắt kết nối sau 10s nghẽn/chuyển trạm sóng di động 4G/5G/Wi-Fi).
-              - Tối ưu TCP Keep-Alive đa tầng (probe 20s, retry 10s, 8 lần = 80s chống rớt NAT di động).
-              - Kích hoạt phân lớp ưu tiên luồng mạng thời gian thực `SO_TC_VO` (Voice/Interactive Realtime) ngăn iOS ngắt luồng dữ liệu game khi tắt màn hình.
-            - 🛡️ **Khắc Phục Hoàn Toàn Lỗi Bị Kill App Sau ~1 Giờ Treo Máy**:
-              - Kích hoạt đồng thời `AVAudioPlayer` (chạy sóng hạ âm 16Hz non-zero PCM trong `mediaserverd` hệ thống) kết hợp `AVAudioEngine AURemoteIO` 18Hz.
-              - Cấu hình âm thanh `.mixWithOthers`, `.allowBluetooth`, `.allowBluetoothA2DP`, `.allowAirPlay` giúp app không bao giờ bị dừng khi đổi tai nghe hoặc có âm thanh hệ thống.
-            - 📌 **Thông Báo Ghim Cố Định Âm Thầm (Passive Interruption) & Tự Động Xóa Khi Tắt App**:
-              - Ghim thẻ trạng thái RAM/CPU/Tab cố định trên Màn Hình Khóa & Trung Tâm Thông Báo.
-              - **Tuyệt đối không rơi banner popup**: Thiết lập `interruptionLevel = .passive` không chuông, không rung, không nháy màn hình.
-              - **Tắt app là mất ngay**: Tự động xóa sạch thẻ thông báo ngay khi tắt/thoát app (Swipe up kill app) hoặc khi quay lại chơi game.
-            - 🖥️ **Màn Hình Tự Động Kín 100%, Không Méo, Không Viền Đen**.
+              - Tối ưu TCP Keep-Alive đa tầng và phân lớp thời gian thực `SO_TC_VO`.
+            - 📌 **Thông Báo Ghim Cố Định Âm Thầm & Tự Xóa Khi Tắt App**.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly, TrollStore hoặc 3uTools.
           files: J2ME-Decade.ipa
 

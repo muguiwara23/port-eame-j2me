@@ -50,6 +50,7 @@ class DecadeConfigViewController: UIViewController {
     private let proxyStatusLabel = UILabel()
     private let fillScreenSwitch = UISwitch()
     private let treoSwitch = UISwitch()
+    private let locationModeSwitch = UISwitch()
     private let autoCleanRamSwitch = UISwitch()
     private let soundSwitch = UISwitch()
 
@@ -399,6 +400,21 @@ class DecadeConfigViewController: UIViewController {
         // Divider
         cardStack.addArrangedSubview(makeDivider())
 
+        // Item 2a: Treo Định Vị BTS (0% Hao Pin, Không Âm Thanh)
+        let locationRow = makeToggleRow(
+            icon: "location.fill",
+            iconBg: UIColor(red: 0.88, green: 0.93, blue: 1.0, alpha: 1.0),
+            iconTint: UIColor(red: 0.10, green: 0.45, blue: 0.95, alpha: 1.0),
+            title: "Treo Định Vị BTS (0% Pin)",
+            subtitle: "Không Dùng Audio, Tiết Kiệm Pin Tối Đa",
+            toggle: locationModeSwitch,
+            action: #selector(locationModeSwitchChanged(_:))
+        )
+        cardStack.addArrangedSubview(locationRow)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
         // Item 2b: Tự Động Dọn RAM (Giải phóng bộ nhớ định kỳ khi treo lâu)
         let ramRow = makeToggleRow(
             icon: "sparkles",
@@ -652,6 +668,15 @@ class DecadeConfigViewController: UIViewController {
         saveValues()
     }
 
+    @objc private func locationModeSwitchChanged(_ sender: UISwitch) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        DecadeLocationKeeper.shared.isLocationModeActive = sender.isOn
+        if sender.isOn {
+            DecadeLocationKeeper.shared.requestPermissionIfNeeded()
+        }
+        saveValues()
+    }
+
     @objc private func autoCleanRamSwitchChanged(_ sender: UISwitch) {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         DecadeBackgroundKeeper.shared.setAutoCleanRamActive(sender.isOn)
@@ -776,6 +801,9 @@ class DecadeConfigViewController: UIViewController {
         // Treo khi ra ngoài: Mặc định luôn là TRUE
         treoSwitch.isOn = DecadeBackgroundKeeper.shared.isTreoActive
 
+        // Treo định vị BTS: Tiết kiệm pin tối đa
+        locationModeSwitch.isOn = DecadeLocationKeeper.shared.isLocationModeActive
+
         // Kín Màn Hình (Mặc định TRUE khi chọn Tự Động hoặc nếu chưa đặt)
         let savedFill = defaults.object(forKey: "decade_fill_screen_\(gid)") as? Bool
             ?? (savedW == 0 && savedH == 0 ? true : !(defaults.bool(forKey: "aspect_\(gid)")))
@@ -806,6 +834,7 @@ class DecadeConfigViewController: UIViewController {
         defaults.set(sFps, forKey: "fpsLimit_\(gid)")
 
         defaults.set(treoSwitch.isOn, forKey: "decade_treo_tat_man")
+        defaults.set(locationModeSwitch.isOn, forKey: "decade_use_location_keepalive")
         defaults.set(soundSwitch.isOn, forKey: "decade_game_sound")
         defaults.set(fillScreenSwitch.isOn, forKey: "decade_fill_screen_\(gid)")
         defaults.set(!fillScreenSwitch.isOn, forKey: "aspect_\(gid)")
@@ -821,6 +850,7 @@ class DecadeConfigViewController: UIViewController {
                 "scale": sRes,
                 "fps": sFps,
                 "treo": treoSwitch.isOn,
+                "locationMode": locationModeSwitch.isOn,
                 "cleanRam": autoCleanRamSwitch.isOn,
                 "fillScreen": fillScreenSwitch.isOn,
                 "sound": soundSwitch.isOn

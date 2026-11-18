@@ -210,18 +210,23 @@ public abstract class Canvas extends Displayable {
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
         synchronized (paintLock) {
-            if (nativeContext == 0) initContext();
-            repaintPending = false;
-            if (fullRepaint) {
-                graphics.reset(0, 0, width, height);
-            } else {
-                graphics.reset(clipX, clipY, clipW, clipH);
+            try {
+                if (nativeContext == 0) initContext();
+                repaintPending = false;
+                if (fullRepaint) {
+                    graphics.reset(0, 0, width, height);
+                } else {
+                    graphics.reset(clipX, clipY, clipW, clipH);
+                }
+                paint(graphics);
+                NativeBridge.flushToScreen(nativeContext);
+            } catch (Throwable t) {
+                System.out.println("[Canvas] Warning: Exception in paint(): " + t);
+            } finally {
+                // Reset for next frame
+                fullRepaint = true;
+                clipX = 0; clipY = 0; clipW = width; clipH = height;
             }
-            paint(graphics);
-            NativeBridge.flushToScreen(nativeContext);
-            // Reset for next frame
-            fullRepaint = true;
-            clipX = 0; clipY = 0; clipW = width; clipH = height;
         }
     }
 

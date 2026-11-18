@@ -230,7 +230,11 @@ public class Display {
             if (current instanceof Canvas) {
                 Canvas canvas = (Canvas) current;
                 if (canvas.repaintPending) {
-                    canvas.doPaint();
+                    try {
+                        canvas.doPaint();
+                    } catch (Throwable t) {
+                        System.out.println("[Display] Warning: exception in canvas.doPaint: " + t);
+                    }
                 }
             }
 
@@ -241,7 +245,9 @@ public class Display {
                     Thread.sleep(inBg ? 60 : 16);
                 }
             } catch (InterruptedException e) {
-                break;
+                if (NativeBridge.isStopRequested() || MIDlet.isDestroyRequested()) {
+                    break;
+                }
             }
         }
 
