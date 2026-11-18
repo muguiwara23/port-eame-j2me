@@ -276,6 +276,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     /// xoá URLCache và trả trang nhớ malloc về kernel iOS (chống Jetsam kill khi treo lâu).
     func performRamCleanup(completion: ((Double, Double) -> Void)? = nil) {
         let beforeMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+        // Chỉ chạy dọn dẹp sâu nếu bấm thủ công hoặc RAM thực sự cao (>150MB) để tránh đơ/khựng khung hình khi treo game
+        guard completion != nil || beforeMB > 150.0 else { return }
+
         URLCache.shared.removeAllCachedResponses()
         GameViewController.purgeInactiveSlotFrames()
         DecadePiPManager.shared.purgeBuffers()

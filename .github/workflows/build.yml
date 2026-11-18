@@ -83,22 +83,18 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.16-native
-          name: "Vạn Trần J2ME Native iOS v2.16"
+          tag_name: v2.17-native
+          name: "Vạn Trần J2ME Native iOS v2.17"
           body: |
-            ## Vạn Trần J2ME iOS v2.16 — Treo Định Vị BTS (0% Pin, Không Cần Audio) & Chống Out Game
+            ## Vạn Trần J2ME iOS v2.17 — Khắc Phục Triệt Để Đơ Màn Hình & Văng Game Khi Treo Lâu
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - 📍 **Chế Độ Treo Định Vị BTS Tiết Kiệm Pin Tối Đa (0% Pin, Không Cần Âm Thanh)**:
-              - Sử dụng chế độ chạy nền định vị trạm sóng di động BTS (`kCLLocationAccuracyThreeKilometers`).
-              - **TẮT HOÀN TOÀN** chip phần cứng GPS vệ tinh (0% hao pin định vị vệ tinh).
-              - **TẮT HOÀN TOÀN** âm thanh audio keepalive (`AVAudioPlayer` & `AVAudioEngine`), giải phóng hoàn toàn chip xử lý âm thanh DAC để tiết kiệm pin tối đa.
-            - 🛡️ **Khắc Phục Triệt Để Lỗi Bị Out Game Về Danh Sách Khi Đang Treo (Anti-Dismiss & Anti-Exit)**:
-              - **Chặn lệnh tự hủy khi ở nền**: Tự động bỏ qua lệnh `notifyDestroyed()` từ game mod khi app đang tắt màn hình/chạy ngầm, không để game tự đóng khi mạng lag hay timeout.
-              - **Khóa tự đóng giao diện (Anti-Dismiss)**: Chỉ đóng game khi người dùng trực tiếp bấm nút "Thoát / Back". Không bao giờ tự động văng về màn hình danh sách ngoài.
-              - **Bọc an toàn luồng sự kiện (Event Loop)**: Bọc `try-catch` toàn diện cho đồ họa và chống ngắt luồng `InterruptedException` khi dọn dẹp RAM/GC.
-              - **Hộp thoại khôi phục game thông minh**: Nếu game dừng do mất kết nối máy chủ, giữ nguyên màn hình và hiển thị nút "Vào lại game ngay" tiện lợi.
-            - 🌐 **Giữ Kết Nối Mạng Socket 24/7 Xuyên Suốt Không Ngắt Nghỉ**:
-              - Tối ưu TCP Keep-Alive đa tầng và phân lớp thời gian thực `SO_TC_VO`.
+            - 🛡️ **Khắc Phục Triệt Để Hiện Tượng Đơ Màn Hình Rồi Văng Ra Danh Sách (Fix Freeze & Auto-Reconnect)**:
+              - **Chặn hoàn toàn lệnh tự thoát từ game mod**: Cả trong màn hình sáng lẫn chạy ngầm, giả lập chặn 100% lệnh `System.exit()` và `notifyDestroyed()` từ game mod nếu người chơi chưa bấm nút "Thoát / Back" trên Decade.
+              - **Tự động vào lại game sau 2 giây (Auto-Reconnect)**: Nếu máy chủ game ngắt kết nối hoặc bảo trì, giả lập giữ nguyên màn hình và tự động khởi động lại game sau 2 giây để auto-login tiếp tục treo mà không văng ra ngoài.
+              - **Tối ưu TCP Keep-Alive chống rớt sóng NAT**: Nâng thời gian chịu lỗi lên 11+ phút (660s) thay vì ngắt cưỡng bức ở 80s, loại bỏ socket filter class gây nghẽn kết nối của nhà mạng di động.
+              - **Loại bỏ hiện tượng khựng/đơ khung hình định kỳ**: Tắt việc ép dọn RAM cưỡng bức mỗi 60s khi dung lượng RAM đang thấp (<150MB), giúp game chạy mượt 100% không bao giờ bị đơ giật khi treo lâu.
+            - 📍 **Chế Độ Treo Định Vị BTS Tiết Kiệm Pin Tối Đa (0% Pin, Không Cần Audio)**:
+              - Giữ kết nối ngầm bằng trạm sóng BTS di động (`kCLLocationAccuracyThreeKilometers`), TẮT HOÀN TOÀN chip GPS vệ tinh và TẮT HOÀN TOÀN audio keepalive để máy mát lạnh và tiết kiệm pin tối đa.
             - 📌 **Thông Báo Ghim Cố Định Âm Thầm & Tự Xóa Khi Tắt App**.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly, TrollStore hoặc 3uTools.
           files: J2ME-Decade.ipa

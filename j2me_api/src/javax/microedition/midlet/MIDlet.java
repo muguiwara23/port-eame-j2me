@@ -53,8 +53,8 @@ public abstract class MIDlet {
      * Report that the MIDlet has completed its work.
      */
     public final void notifyDestroyed() {
-        if (javax.microedition.lcdui.NativeBridge.isBackground()) {
-            System.out.println("[MIDlet] notifyDestroyed called in background - ignored to keep game alive during background hang!");
+        if (!javax.microedition.lcdui.NativeBridge.isStopRequested()) {
+            System.out.println("[MIDlet] notifyDestroyed called while user did NOT request stop - ignored to keep game alive!");
             return;
         }
         destroyRequested = true;

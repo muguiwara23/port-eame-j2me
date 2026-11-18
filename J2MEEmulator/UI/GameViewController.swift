@@ -1997,21 +1997,15 @@ class GameViewController: UIViewController {
     }
 
     private func handleUnexpectedGameExit() {
-        DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: "\(appName) (Đã ngắt)")
+        guard !isUserInitiatedExit else { return }
+        DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: "\(appName) (Tự kết nối lại...)")
 
-        let alert = UIAlertController(
-            title: "⚠️ Trò chơi đã ngắt kết nối",
-            message: "Game \"\(appName)\" đã dừng hoặc mất kết nối với máy chủ khi đang treo.\nBạn muốn vào lại game ngay không?",
-            preferredStyle: .alert
-        )
-        alert.addAction(UIAlertAction(title: "🔄 Vào lại game ngay", style: .default) { [weak self] _ in
+        showToast(message: "🔄 Game đã ngắt kết nối. Đang tự động kết nối lại sau 2 giây...")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            guard let self = self, !self.isUserInitiatedExit else { return }
+            print("[Swift] Auto-reconnecting / restarting game after unexpected exit...")
             self?.startGame()
-        })
-        alert.addAction(UIAlertAction(title: "Thoát ra danh sách", style: .destructive) { [weak self] _ in
-            self?.backTapped()
-        })
-        if self.presentedViewController == nil {
-            self.present(alert, animated: true)
         }
     }
 

@@ -637,7 +637,15 @@ s32 java_lang_Object_wait(Runtime *runtime, JClass *clazz) {
     return ret;
 }
 
+extern int jvm_bridge_get_jvm_slot(MiniJVM *jvm);
+extern int jvm_bridge_is_slot_stop_requested(int slot);
+
 s32 java_lang_Runtime_exitInternal(Runtime *runtime, JClass *clazz) {
+    int slot = jvm_bridge_get_jvm_slot(runtime->jvm);
+    if (!jvm_bridge_is_slot_stop_requested(slot)) {
+        jvm_printf("[MiniJVM] System.exit(%d) intercepted - user did not request exit, keeping game running!\n", localvar_getInt(runtime->localvar, 1));
+        return 0;
+    }
     RuntimeStack *stack = runtime->stack;
     s32 status = localvar_getInt(runtime->localvar, 1);
     //exit(status);
