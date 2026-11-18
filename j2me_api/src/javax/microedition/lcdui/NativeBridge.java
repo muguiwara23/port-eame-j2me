@@ -53,8 +53,9 @@ public class NativeBridge {
     // Input
     public static native int[] pollInputEvent();
 
-    // Lifecycle — check if native side requested MIDlet stop
+    // Lifecycle — check if native side requested MIDlet stop or app is in background
     public static native boolean isStopRequested();
+    public static native boolean isBackground();
 
     // UI (Forms/Lists/Alerts)
     public static native void formBegin(String title, int type);

@@ -404,8 +404,8 @@ static s32 n_flushToScreen(Runtime *runtime, JClass *clazz) {
 
     if (atomic_load_explicit(&g_is_background, memory_order_relaxed)) {
         // In background / screen-off mode: skip CGBitmapContextCreateImage completely
-        // and pace loop gently (~28 ticks/sec) so CPU stays < 5% and iOS never kills the app!
-        usleep(35000);
+        // and pace loop gently (~16 ticks/sec) so wakeups < 30/s & CPU < 5% (never hits iOS EXC_RESOURCE)!
+        usleep(60000);
         return RUNTIME_STATUS_NORMAL;
     }
 
@@ -1175,7 +1175,13 @@ static void ensureHapticEngine(void) API_AVAILABLE(ios(13.0)) {
     }
 }
 
+static s32 n_isBackground(Runtime *runtime, JClass *clazz) {
+    runtime->jnienv->push_int(runtime->stack, j2me_render_is_background() ? 1 : 0);
+    return RUNTIME_STATUS_NORMAL;
+}
+
 static s32 n_vibrate(Runtime *runtime, JClass *clazz) {
+    if (j2me_render_is_background()) return RUNTIME_STATUS_NORMAL;
     s32 durationMs = runtime->jnienv->localvar_getInt(runtime->localvar, 0);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (@available(iOS 13.0, *)) {
@@ -1261,7 +1267,8 @@ static java_native_method j2me_render_methods[] = {
     {CLS, "drawPolygon",         "(J[I[II)V",                            n_drawPolygon},
     {CLS, "copyArea",            "(JIIIIII)V",                           n_copyArea},
 
-    // Haptics
+    // Lifecycle & Haptics
+    {CLS, "isBackground",        "()Z",                                  n_isBackground},
     {CLS, "vibrate",             "(I)V",                                 n_vibrate},
 };
 

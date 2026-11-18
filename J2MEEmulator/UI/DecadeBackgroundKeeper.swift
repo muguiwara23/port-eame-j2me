@@ -2,24 +2,33 @@
 //  DecadeBackgroundKeeper.swift
 //  J2MEEmulator
 //
-//  Engine chạy ngầm 24/7 cho J2ME iOS: Treo tắt màn hình & Ra ngoài màn hình chính vĩnh viễn.
-//  - Sử dụng sóng hạ âm 16 Hz (-57 dB) non-zero PCM (không nghe thấy bằng tai/loa điện thoại)
-//    với volume = 1.0 để mediaserverd KHÔNG BAO GIỜ phát hiện im lặng và cắt quyền chạy nền.
-//  - Kích hoạt ngay khi mở app ở Foreground (trước khi khoá màn hình).
-//  - Ngắt render đồ hoạ CoreGraphics & OpenGL ES khi tắt màn hình (giảm CPU về < 5%,
-//    0 MB/s cấp phát bitmap) để chống iOS RunningBoard CPU limit & Jetsam kill 100%.
-//  - Giữ toàn bộ luồng JVM, auto-farm và kết nối mạng TCP socket hoạt động liên tục 24/7.
+//  Engine chạy ngầm 24/7 chuẩn Spotify / Apple Music cho J2ME iOS:
+//  - Sử dụng AVAudioSession .playback ĐỘC QUYỀN kết hợp MPNowPlayingInfoCenter &
+//    MPRemoteCommandCenter để iOS RunningBoard cấp mức ưu tiên Jetsam cao nhất
+//    (MediaPlayback / NowPlaying Priority 120 — tương đương Apple Music & Spotify).
+//  - Sử dụng AVAudioEngine + AVAudioSourceNode (CoreAudio AURemoteIO phần cứng)
+//    phát liên tục không ngắt quãng sóng hạ âm 18 Hz (-56 dB, hoàn toàn im lặng với
+//    tai người & loa điện thoại), kèm AVAudioPlayer dự phòng.
+//  - Hiển thị trực tiếp trạng thái "Đang treo: <Tên Game>" trên màn hình khóa để
+//    xác nhận iOS đang giữ tiến trình sống liên tục.
+//  - Ngắt render CoreGraphics & OpenGL ES và hạ nhịp Display xuống ~8 wakeups/giây
+//    khi tắt màn hình để không bao giờ chạm giới hạn EXC_RESOURCE CPU / WAKEUPS.
 //
 
 import UIKit
 import AVFoundation
+import MediaPlayer
 
 final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     static let shared = DecadeBackgroundKeeper()
 
+    private var audioEngine: AVAudioEngine?
+    private var sourceNode: AVAudioSourceNode?
     private var audioPlayer: AVAudioPlayer?
     private var watchdogTimer: DispatchSourceTimer?
     private var ramCleanTimer: DispatchSourceTimer?
+    private var remoteCommandsConfigured = false
+    private var currentGameName: String = "J2ME Game"
 
     var isTreoActive: Bool {
         get {
@@ -102,10 +111,38 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         )
         nc.addObserver(
             self,
+            selector: #selector(handleEngineConfigurationChange),
+            name: .AVAudioEngineConfigurationChange,
+            object: nil
+        )
+        nc.addObserver(
+            self,
             selector: #selector(handleMemoryWarning),
             name: UIApplication.didReceiveMemoryWarningNotification,
             object: nil
         )
+    }
+
+    func updateNowPlayingGame(name: String) {
+        currentGameName = name.isEmpty ? "J2ME Game" : name
+        if isTreoActive {
+            updateNowPlayingInfo()
+        }
+    }
+
+    func setTreoActive(_ active: Bool) {
+        UserDefaults.standard.set(active, forKey: "decade_treo_tat_man")
+
+        if active {
+            startKeepalive()
+            UIApplication.shared.isIdleTimerDisabled = true
+            print("[DecadeBackgroundKeeper] Treo tắt màn & Chạy nền 24/7: ĐÃ BẬT")
+        } else {
+            stopWatchdog()
+            stopKeepalive()
+            UIApplication.shared.isIdleTimerDisabled = false
+            print("[DecadeBackgroundKeeper] Treo tắt màn: ĐÃ TẮT")
+        }
     }
 
     func setAutoCleanRamActive(_ active: Bool) {
@@ -145,7 +182,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private func startAutoRamCleaner() {
         guard ramCleanTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
-        timer.schedule(deadline: .now() + 90.0, repeating: 90.0)
+        timer.schedule(deadline: .now() + 120.0, repeating: 120.0)
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isAutoCleanRamActive else { return }
             self.performRamCleanup(completion: nil)
@@ -159,41 +196,33 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         ramCleanTimer = nil
     }
 
-    func setTreoActive(_ active: Bool) {
-        UserDefaults.standard.set(active, forKey: "decade_treo_tat_man")
-
-        if active {
-            startKeepalive()
-            UIApplication.shared.isIdleTimerDisabled = true
-            print("[DecadeBackgroundKeeper] Treo tắt màn & Chạy nền 24/7: ĐÃ BẬT")
-        } else {
-            stopWatchdog()
-            stopKeepalive()
-            UIApplication.shared.isIdleTimerDisabled = false
-            print("[DecadeBackgroundKeeper] Treo tắt màn: ĐÃ TẮT")
-        }
-    }
-
     func startKeepalive() {
-        startAudioStream(forceRecreate: false)
+        setupRemoteCommandsIfNeeded()
+        startAudioPipeline(forceRecreate: false)
+        updateNowPlayingInfo()
         startWatchdog()
     }
 
     func stopKeepalive() {
+        audioEngine?.stop()
+        audioEngine = nil
+        sourceNode = nil
         audioPlayer?.stop()
         audioPlayer = nil
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     @objc func onSceneWillResignActive() {
         if isTreoActive {
-            // Đảm bảo audio đang chạy TRƯỚC KHI iOS chuyển app sang background!
-            startAudioStream(forceRecreate: false)
+            // Bảo đảm CoreAudio AURemoteIO + NowPlaying đang chạy TRƯỚC KHI khóa màn hình!
+            startAudioPipeline(forceRecreate: false)
+            updateNowPlayingInfo()
         }
     }
 
     @objc func onSceneDidEnterBackground() {
         if !DecadePiPManager.shared.isPiPActive {
-            // Bật chế độ ngắt render đồ hoạ CoreGraphics/GL để CPU < 5% và 0 MB/s memory churn
+            // Bật chế độ ngắt render đồ hoạ CoreGraphics/GL + hạ wakeup xuống ~8/s
             j2me_render_set_background(1)
         }
         if isTreoActive {
@@ -237,9 +266,10 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
 
         if type == .ended {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 guard let self = self, self.isTreoActive else { return }
-                self.startAudioStream(forceRecreate: false)
+                self.startAudioPipeline(forceRecreate: false)
+                self.updateNowPlayingInfo()
             }
         }
     }
@@ -248,8 +278,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         guard isTreoActive else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isTreoActive else { return }
-            if self.audioPlayer == nil || self.audioPlayer?.isPlaying == false {
-                self.startAudioStream(forceRecreate: false)
+            if !self.isAudioRunning {
+                self.startAudioPipeline(forceRecreate: false)
+                self.updateNowPlayingInfo()
             }
         }
     }
@@ -258,55 +289,186 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         guard isTreoActive else { return }
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isTreoActive else { return }
-            self.startAudioStream(forceRecreate: true)
+            self.startAudioPipeline(forceRecreate: true)
+            self.updateNowPlayingInfo()
         }
     }
 
-    private func startAudioStream(forceRecreate: Bool) {
+    @objc private func handleEngineConfigurationChange() {
+        guard isTreoActive else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isTreoActive else { return }
+            if self.audioEngine?.isRunning == false {
+                self.startAudioPipeline(forceRecreate: true)
+                self.updateNowPlayingInfo()
+            }
+        }
+    }
+
+    private var isAudioRunning: Bool {
+        if let eng = audioEngine, eng.isRunning { return true }
+        if let pl = audioPlayer, pl.isPlaying { return true }
+        return false
+    }
+
+    private func setupRemoteCommandsIfNeeded() {
+        guard !remoteCommandsConfigured else { return }
+        remoteCommandsConfigured = true
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.isEnabled = true
+        center.playCommand.addTarget { [weak self] _ in
+            guard let self = self else { return .commandFailed }
+            self.startAudioPipeline(forceRecreate: false)
+            self.updateNowPlayingInfo()
+            return .success
+        }
+        center.pauseCommand.isEnabled = true
+        center.pauseCommand.addTarget { [weak self] _ in
+            // Giữ kết nối luôn sống ngay cả khi bấm nhầm nút trên màn hình khóa
+            guard let self = self else { return .commandFailed }
+            if self.isTreoActive {
+                self.startAudioPipeline(forceRecreate: false)
+                self.updateNowPlayingInfo()
+            }
+            return .success
+        }
+        center.nextTrackCommand.isEnabled = false
+        center.previousTrackCommand.isEnabled = false
+    }
+
+    private func updateNowPlayingInfo() {
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: "Đang treo: \(currentGameName)",
+            MPMediaItemPropertyArtist: "J2ME Decade • Giữ kết nối 24/7",
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
+        ]
+        if let appIcon = UIImage(named: "AppIcon") {
+            let artwork = MPMediaItemArtwork(boundsSize: appIcon.size) { _ in appIcon }
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        if #available(iOS 13.0, *) {
+            MPNowPlayingInfoCenter.default().playbackState = .playing
+        }
+    }
+
+    /// Khởi động pipeline âm thanh hạ âm 18 Hz (-56 dB):
+    /// Ưu tiên AVAudioEngine + AVAudioSourceNode (CoreAudio hardware callback không ngắt quãng),
+    /// tự động dự phòng sang AVAudioPlayer nếu engine gặp lỗi phần cứng.
+    private func startAudioPipeline(forceRecreate: Bool) {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            // Exclusive .playback (KHÔNG dùng .mixWithOthers) để iOS cấp quyền NowPlaying + Jetsam Priority 120!
+            try session.setCategory(.playback, mode: .default, options: [])
             try session.setActive(true, options: [])
 
             if forceRecreate {
+                audioEngine?.stop()
+                audioEngine = nil
+                sourceNode = nil
                 audioPlayer?.stop()
                 audioPlayer = nil
             }
+
+            if audioEngine == nil {
+                if startRealtimeAudioEngine() {
+                    return
+                }
+            } else if let eng = audioEngine {
+                if !eng.isRunning {
+                    try eng.start()
+                    print("[DecadeBackgroundKeeper] AVAudioEngine resumed.")
+                }
+                return
+            }
+
+            // Fallback: AVAudioPlayer playing 16Hz -57dB silent.wav
+            startFallbackAudioPlayer()
+        } catch {
+            print("[DecadeBackgroundKeeper] Audio pipeline error: \(error) — trying fallback player")
+            startFallbackAudioPlayer()
+        }
+    }
+
+    private func startRealtimeAudioEngine() -> Bool {
+        let engine = AVAudioEngine()
+        let outputFormat = engine.outputNode.outputFormat(forBus: 0)
+        let sampleRate = outputFormat.sampleRate > 0 ? outputFormat.sampleRate : 44100.0
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1) else {
+            return false
+        }
+
+        // Continuous 18 Hz sub-audible sine wave at amplitude 0.0015 (-56 dB):
+        // Completely inaudible to human ears & iPhone speakers, yet continuous non-zero PCM
+        // so mediaserverd AURemoteIO hardware pipeline NEVER drops our background assertion!
+        var phase: Double = 0.0
+        let phaseIncrement = 2.0 * Double.pi * 18.0 / sampleRate
+        let amplitude: Float = 0.0015
+
+        let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList -> OSStatus in
+            let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
+            for frame in 0..<Int(frameCount) {
+                let sample = Float(sin(phase)) * amplitude
+                phase += phaseIncrement
+                if phase >= 2.0 * Double.pi {
+                    phase -= 2.0 * Double.pi
+                }
+                for buffer in ablPointer {
+                    if let mData = buffer.mData {
+                        let ptr = mData.assumingMemoryBound(to: Float.self)
+                        ptr[frame] = sample
+                    }
+                }
+            }
+            return noErr
+        }
+
+        engine.attach(node)
+        engine.connect(node, to: engine.mainMixerNode, format: format)
+        engine.mainMixerNode.outputVolume = 1.0
+        engine.prepare()
+
+        do {
+            try engine.start()
+            self.audioEngine = engine
+            self.sourceNode = node
+            print("[DecadeBackgroundKeeper] AVAudioEngine AURemoteIO 18Hz keepalive RUNNING (\(sampleRate) Hz).")
+            return true
+        } catch {
+            print("[DecadeBackgroundKeeper] AVAudioEngine start failed: \(error)")
+            engine.stop()
+            return false
+        }
+    }
+
+    private func startFallbackAudioPlayer() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .default, options: [])
+            try? session.setActive(true, options: [])
 
             if audioPlayer == nil {
                 var player: AVAudioPlayer?
                 if let bundleURL = Bundle.main.url(forResource: "silent", withExtension: "wav") {
                     player = try? AVAudioPlayer(contentsOf: bundleURL)
                 }
-
                 if player == nil {
-                    let tempWavPath = NSTemporaryDirectory() + "/j2me_keepalive_16hz.wav"
-                    let fileURL = URL(fileURLWithPath: tempWavPath)
-                    if !FileManager.default.fileExists(atPath: tempWavPath) {
-                        let data = createSubaudible16HzWavData()
-                        try? data.write(to: fileURL)
-                    }
-                    player = try? AVAudioPlayer(contentsOf: fileURL)
+                    player = try? AVAudioPlayer(data: createSubaudible16HzWavData())
                 }
-
-                if player == nil {
-                    let data = createSubaudible16HzWavData()
-                    player = try? AVAudioPlayer(data: data)
-                }
-
                 audioPlayer = player
                 audioPlayer?.delegate = self
-                audioPlayer?.numberOfLoops = -1 // Vòng lặp vô tận
-                audioPlayer?.volume = 1.0       // PCM đã là sóng hạ âm 16Hz (-57dB) nên để 1.0 để mediaserverd luôn giữ pipeline!
+                audioPlayer?.numberOfLoops = -1
+                audioPlayer?.volume = 1.0
                 audioPlayer?.prepareToPlay()
             }
-
             if audioPlayer?.isPlaying == false {
                 let ok = audioPlayer?.play() ?? false
-                print("[DecadeBackgroundKeeper] Audio keepalive play=\(ok)")
+                print("[DecadeBackgroundKeeper] Fallback AVAudioPlayer play=\(ok)")
             }
-        } catch {
-            print("[DecadeBackgroundKeeper] Audio setup error: \(error)")
         }
     }
 
@@ -319,20 +481,21 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
         if isTreoActive {
-            startAudioStream(forceRecreate: true)
+            startAudioPipeline(forceRecreate: true)
         }
     }
 
-    /// Watchdog timer kiểm tra mỗi 3 giây đảm bảo audio keepalive không bao giờ bị dừng.
+    /// Watchdog tần số thấp (10 giây/lần = 0.1 wakeup/giây) đảm bảo audio keepalive luôn chạy.
     private func startWatchdog() {
         guard watchdogTimer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
-        timer.schedule(deadline: .now() + 3.0, repeating: 3.0)
+        timer.schedule(deadline: .now() + 10.0, repeating: 10.0)
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isTreoActive else { return }
             DispatchQueue.main.async {
-                if self.audioPlayer == nil || self.audioPlayer?.isPlaying == false {
-                    self.startAudioStream(forceRecreate: false)
+                if !self.isAudioRunning {
+                    self.startAudioPipeline(forceRecreate: false)
+                    self.updateNowPlayingInfo()
                 }
             }
         }
@@ -345,27 +508,19 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         watchdogTimer = nil
     }
 
-    /// Synthesizes a valid 10-second 44.1kHz mono 16-bit PCM WAV with continuous 16Hz -57dB sine wave.
-    /// Completely inaudible to human ears & phone speakers, yet non-zero RMS energy so iOS mediaserverd
-    /// never detects digital silence and never revokes the background playback assertion.
     private func createSubaudible16HzWavData() -> Data {
         let sampleRate: Int32 = 44100
         let channels: Int16 = 1
         let bitsPerSample: Int16 = 16
-        let numSamples: Int32 = sampleRate * 10 // 10 seconds
+        let numSamples: Int32 = sampleRate * 10
         let dataSize: Int32 = numSamples * Int32(channels) * Int32(bitsPerSample / 8)
         let totalSize: Int32 = 36 + dataSize
 
         var data = Data()
         data.reserveCapacity(Int(totalSize + 8))
-
-        // "RIFF"
         data.append(contentsOf: [0x52, 0x49, 0x46, 0x46])
         data.append(withUnsafeBytes(of: totalSize.littleEndian) { Data($0) })
-        // "WAVE"
         data.append(contentsOf: [0x57, 0x41, 0x56, 0x45])
-
-        // "fmt " chunk
         data.append(contentsOf: [0x66, 0x6D, 0x74, 0x20])
         let fmtSize: Int32 = 16
         data.append(withUnsafeBytes(of: fmtSize.littleEndian) { Data($0) })
@@ -378,8 +533,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         let blockAlign: Int16 = channels * (bitsPerSample / 8)
         data.append(withUnsafeBytes(of: blockAlign.littleEndian) { Data($0) })
         data.append(withUnsafeBytes(of: bitsPerSample.littleEndian) { Data($0) })
-
-        // "data" chunk
         data.append(contentsOf: [0x64, 0x61, 0x74, 0x61])
         data.append(withUnsafeBytes(of: dataSize.littleEndian) { Data($0) })
 

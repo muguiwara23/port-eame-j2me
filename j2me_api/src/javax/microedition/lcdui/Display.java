@@ -225,6 +225,8 @@ public class Display {
             }
 
             // 3. Repaint if needed (Canvas only)
+            boolean inBg = false;
+            try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
             if (current instanceof Canvas) {
                 Canvas canvas = (Canvas) current;
                 if (canvas.repaintPending) {
@@ -232,10 +234,11 @@ public class Display {
                 }
             }
 
-            // Sleep in short intervals so we react quickly to destroyRequested
+            // Sleep cleanly: 120ms in background (~8 wakeups/sec, eliminates iOS EXC_RESOURCE WAKEUPS kill!)
+            // and 16ms in foreground (~60 FPS responsive).
             try {
-                for (int i = 0; i < 4 && !MIDlet.isDestroyRequested(); i++) {
-                    Thread.sleep(4);
+                if (!MIDlet.isDestroyRequested()) {
+                    Thread.sleep(inBg ? 120 : 16);
                 }
             } catch (InterruptedException e) {
                 break;

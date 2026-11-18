@@ -1897,7 +1897,8 @@ class GameViewController: UIViewController {
     // ============================================================
 
     private func startGame() {
-        // Tự động kích hoạt chạy nền liên tục và giữ kết nối không bị ngắt
+        // Tự động kích hoạt chạy nền liên tục chuẩn NowPlaying/MediaPlayback và giữ kết nối không bị ngắt
+        DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: appName)
         DecadeBackgroundKeeper.shared.setTreoActive(true)
         UIApplication.shared.isIdleTimerDisabled = true
 
