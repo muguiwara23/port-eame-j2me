@@ -11,6 +11,10 @@ import UIKit
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Khởi động Audio Keep-Alive ngay ở Foreground khi mở app để iOS cấp quyền chạy nền liên tục
+        if DecadeBackgroundKeeper.shared.isTreoActive {
+            DecadeBackgroundKeeper.shared.startKeepalive()
+        }
         return true
     }
 

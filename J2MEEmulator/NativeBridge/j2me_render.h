@@ -32,6 +32,13 @@ void j2me_render_stop(void);
 /// Clean up all render resources. Call between game sessions (after j2me_render_stop).
 void j2me_render_cleanup(void);
 
+/// Enable/disable background low-CPU mode (skips screen CG rasterization & CGImage flush
+/// while keeping JVM logic, offscreen Image operations, and network sockets running 100%).
+void j2me_render_set_background(int is_bg);
+
+/// Query whether the app is currently in background low-CPU render bypass mode.
+int j2me_render_is_background(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -12,6 +12,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 #include "j2me_micro3d_gl.h"
+#include "j2me_render.h"
 #include "jvm.h"
 #include "jvm_util.h"
 #include <stdio.h>
@@ -111,6 +112,7 @@ static s32 n_mc3dInit(Runtime *runtime, JClass *clazz) {
 }
 
 static s32 n_mc3dBind(Runtime *runtime, JClass *clazz) {
+    if (j2me_render_is_background()) return RUNTIME_STATUS_NORMAL;
     g_mc3d_prev_context = [EAGLContext currentContext];
     [EAGLContext setCurrentContext:g_mc3d_context];
     glBindFramebuffer(GL_FRAMEBUFFER, g_mc3d_fbo);
@@ -118,6 +120,7 @@ static s32 n_mc3dBind(Runtime *runtime, JClass *clazz) {
 }
 
 static s32 n_mc3dRelease(Runtime *runtime, JClass *clazz) {
+    if (j2me_render_is_background()) return RUNTIME_STATUS_NORMAL;
     glFlush();
     [EAGLContext setCurrentContext:g_mc3d_prev_context];
     g_mc3d_prev_context = nil;
@@ -208,6 +211,7 @@ static s32 n_glGetError(Runtime *runtime, JClass *clazz) {
 }
 
 static s32 n_glFlush(Runtime *runtime, JClass *clazz) {
+    if (j2me_render_is_background()) return RUNTIME_STATUS_NORMAL;
     glFlush();
     return RUNTIME_STATUS_NORMAL;
 }

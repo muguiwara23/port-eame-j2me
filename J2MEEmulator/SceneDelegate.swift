@@ -47,12 +47,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
+        DecadeBackgroundKeeper.shared.onSceneWillEnterForeground()
     }
 
     func sceneWillResignActive(_ scene: UIScene) {
+        DecadeBackgroundKeeper.shared.onSceneWillResignActive()
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
+        DecadeBackgroundKeeper.shared.onSceneWillEnterForeground()
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {

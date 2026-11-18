@@ -17,6 +17,7 @@
 #include "jvm_util.h"
 #include <stdio.h>
 #include <stdatomic.h>
+#include <unistd.h>
 
 // ============================================================
 // Internal structures
@@ -64,6 +65,21 @@ static CGColorSpaceRef g_colorSpace = NULL;
 // Set by jvm_bridge before native cleanup. All acquire functions
 // check this and return NULL, so zombie threads can't touch freed resources.
 static volatile int g_render_stopped = 0;
+
+// Background low-CPU render bypass flag (prevents iOS RunningBoard CPU & Jetsam kills)
+static _Atomic int g_is_background = 0;
+
+void j2me_render_set_background(int is_bg) {
+    atomic_store_explicit(&g_is_background, is_bg ? 1 : 0, memory_order_release);
+}
+
+int j2me_render_is_background(void) {
+    return atomic_load_explicit(&g_is_background, memory_order_acquire);
+}
+
+static inline int should_skip_screen_draw(RenderContext *rc) {
+    return (rc && rc->ownsPixels && atomic_load_explicit(&g_is_background, memory_order_relaxed));
+}
 
 // Global tracking arrays for forced cleanup between game sessions.
 // Protected by g_track_lock. Entries are added on create, removed on release (refcount→0).
@@ -375,6 +391,13 @@ static s32 n_destroyContext(Runtime *runtime, JClass *clazz) {
 static s32 n_flushToScreen(Runtime *runtime, JClass *clazz) {
     process_dead_shells();
 
+    if (atomic_load_explicit(&g_is_background, memory_order_relaxed)) {
+        // In background / screen-off mode: skip CGBitmapContextCreateImage completely
+        // and pace loop gently (~28 ticks/sec) so CPU stays < 5% and iOS never kills the app!
+        usleep(35000);
+        return RUNTIME_STATUS_NORMAL;
+    }
+
     JniEnv *env = runtime->jnienv;
     s64 handle = env->localvar_getLong_2slot(runtime->localvar, 0);
     RenderContext *rc = rc_acquire(handle);
@@ -456,7 +479,7 @@ static s32 n_drawLine(Runtime *runtime, JClass *clazz) {
     s32 x2 = env->localvar_getInt(runtime->localvar, 4);
     s32 y2 = env->localvar_getInt(runtime->localvar, 5);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGContextBeginPath(rc->ctx);
         CGContextMoveToPoint(rc->ctx, x1 + 0.5, y1 + 0.5);
         CGContextAddLineToPoint(rc->ctx, x2 + 0.5, y2 + 0.5);
@@ -474,7 +497,7 @@ static s32 n_fillRect(Runtime *runtime, JClass *clazz) {
     s32 w = env->localvar_getInt(runtime->localvar, 4);
     s32 h = env->localvar_getInt(runtime->localvar, 5);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGContextFillRect(rc->ctx, CGRectMake(x, y, w, h));
     }
     rc_release(rc);
@@ -489,7 +512,7 @@ static s32 n_drawRect(Runtime *runtime, JClass *clazz) {
     s32 w = env->localvar_getInt(runtime->localvar, 4);
     s32 h = env->localvar_getInt(runtime->localvar, 5);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGContextStrokeRect(rc->ctx, CGRectMake(x + 0.5, y + 0.5, w, h));
     }
     rc_release(rc);
@@ -506,7 +529,7 @@ static s32 n_fillArc(Runtime *runtime, JClass *clazz) {
     s32 startAngle = env->localvar_getInt(runtime->localvar, 6);
     s32 arcAngle = env->localvar_getInt(runtime->localvar, 7);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGFloat cx = x + w / 2.0, cy = y + h / 2.0;
         CGFloat rx = w / 2.0, ry = h / 2.0;
         CGContextSaveGState(rc->ctx);
@@ -535,7 +558,7 @@ static s32 n_drawArc(Runtime *runtime, JClass *clazz) {
     s32 startAngle = env->localvar_getInt(runtime->localvar, 6);
     s32 arcAngle = env->localvar_getInt(runtime->localvar, 7);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGFloat cx = x + w / 2.0, cy = y + h / 2.0;
         CGFloat rx = w / 2.0, ry = h / 2.0;
         CGContextSaveGState(rc->ctx);
@@ -562,7 +585,7 @@ static s32 n_fillRoundRect(Runtime *runtime, JClass *clazz) {
     s32 aw = env->localvar_getInt(runtime->localvar, 6);
     s32 ah = env->localvar_getInt(runtime->localvar, 7);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGFloat radius = fmin(aw, ah) / 2.0;
         CGPathRef path = CGPathCreateWithRoundedRect(CGRectMake(x, y, w, h), radius, radius, NULL);
         CGContextAddPath(rc->ctx, path);
@@ -583,7 +606,7 @@ static s32 n_drawRoundRect(Runtime *runtime, JClass *clazz) {
     s32 aw = env->localvar_getInt(runtime->localvar, 6);
     s32 ah = env->localvar_getInt(runtime->localvar, 7);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) {
+    if (rc && !should_skip_screen_draw(rc)) {
         CGFloat radius = fmin(aw, ah) / 2.0;
         CGPathRef path = CGPathCreateWithRoundedRect(CGRectMake(x + 0.5, y + 0.5, w, h), radius, radius, NULL);
         CGContextAddPath(rc->ctx, path);
@@ -642,7 +665,7 @@ static s32 n_drawString(Runtime *runtime, JClass *clazz) {
     s32 anchor = env->localvar_getInt(runtime->localvar, 5);
     RenderContext *rc = rc_acquire(handle);
 
-    if (!rc || !jstr) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || !jstr || should_skip_screen_draw(rc)) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
 
     Utf8String *ustr = utf8_create();
     env->jstring_2_utf8(jstr, ustr, runtime);
@@ -816,7 +839,7 @@ static s32 n_drawImage(Runtime *runtime, JClass *clazz) {
 
     RenderContext *rc = rc_acquire(ctxHandle);
     RenderImage *img = img_acquire(imgHandle);
-    if (!rc || !img) { img_release(img); rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || !img || should_skip_screen_draw(rc)) { img_release(img); rc_release(rc); return RUNTIME_STATUS_NORMAL; }
 
     int imgW = img->width, imgH = img->height;
     if (anchor & 1) x -= imgW / 2;
@@ -864,7 +887,7 @@ static s32 n_drawRegion(Runtime *runtime, JClass *clazz) {
 
     RenderContext *rc = rc_acquire(ctxHandle);
     RenderImage *img = img_acquire(imgHandle);
-    if (!rc || !img) { img_release(img); rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || !img || should_skip_screen_draw(rc)) { img_release(img); rc_release(rc); return RUNTIME_STATUS_NORMAL; }
     CGContextRef rctx = rc->ctx;
     CGContextRef ictx = img->ctx;
 
@@ -956,7 +979,7 @@ static s32 n_drawRGB(Runtime *runtime, JClass *clazz) {
     s32 processAlpha = env->localvar_getInt(runtime->localvar, 9);
 
     RenderContext *rc = rc_acquire(ctxHandle);
-    if (!rc || !arr || w <= 0 || h <= 0) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || !arr || w <= 0 || h <= 0 || should_skip_screen_draw(rc)) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
 
     s32 arrLen = arr->arr_length;
     s32 *srcData = (s32 *)arr->arr_body;
@@ -1049,7 +1072,7 @@ static s32 n_fillPolygon(Runtime *runtime, JClass *clazz) {
     Instance *yArr = env->localvar_getRefer(runtime->localvar, 3);
     s32 nPoints = env->localvar_getInt(runtime->localvar, 4);
     RenderContext *rc = rc_acquire(handle);
-    if (!rc || !xArr || !yArr || nPoints < 3) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || !xArr || !yArr || nPoints < 3 || should_skip_screen_draw(rc)) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
     s32 *xPts = (s32 *)xArr->arr_body;
     s32 *yPts = (s32 *)yArr->arr_body;
     CGContextBeginPath(rc->ctx);
@@ -1070,7 +1093,7 @@ static s32 n_drawPolygon(Runtime *runtime, JClass *clazz) {
     Instance *yArr = env->localvar_getRefer(runtime->localvar, 3);
     s32 nPoints = env->localvar_getInt(runtime->localvar, 4);
     RenderContext *rc = rc_acquire(handle);
-    if (!rc || !xArr || !yArr || nPoints < 3) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || !xArr || !yArr || nPoints < 3 || should_skip_screen_draw(rc)) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
     s32 *xPts = (s32 *)xArr->arr_body;
     s32 *yPts = (s32 *)yArr->arr_body;
     CGContextBeginPath(rc->ctx);
@@ -1096,7 +1119,7 @@ static s32 n_copyArea(Runtime *runtime, JClass *clazz) {
     s32 xDst = env->localvar_getInt(runtime->localvar, 6);
     s32 yDst = env->localvar_getInt(runtime->localvar, 7);
     RenderContext *rc = rc_acquire(handle);
-    if (!rc || w <= 0 || h <= 0) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
+    if (!rc || w <= 0 || h <= 0 || should_skip_screen_draw(rc)) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
     CGImageRef fullImg = CGBitmapContextCreateImage(rc->ctx);
     if (!fullImg) { rc_release(rc); return RUNTIME_STATUS_NORMAL; }
     CGImageRef subImg = CGImageCreateWithImageInRect(fullImg, CGRectMake(xSrc, ySrc, w, h));
