@@ -218,6 +218,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     func startKeepalive() {
         setupRemoteCommandsIfNeeded()
         startAudioPipeline(forceRecreate: false)
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         updateNowPlayingInfo()
         startWatchdog()
     }
@@ -229,6 +231,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         audioPlayer?.stop()
         audioPlayer = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 
     @objc func onSceneWillResignActive() {
@@ -462,28 +466,6 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
-    /// Đẩy thông báo thẻ trạng thái RAM/CPU/Tab trực tiếp lên thanh thông báo / màn hình khóa
-    private func postLockScreenNotification(cardImage: UIImage, ramMB: Double, cpuPercent: Double, tabCount: Int, timeString: String) {
-        let center = UNUserNotificationCenter.current()
-        let content = UNMutableNotificationContent()
-        content.title = "🎮 \(currentGameName)"
-        content.subtitle = "Đang chạy nền"
-        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpuPercent))%   •   Tab: \(tabCount)\nCập nhật \(timeString)"
-        content.sound = nil // Cập nhật êm ái, không làm phiền
-
-        let tempDir = FileManager.default.temporaryDirectory
-        let imgURL = tempDir.appendingPathComponent("decade_status_card.png")
-        if let pngData = cardImage.pngData() {
-            try? pngData.write(to: imgURL)
-            if let attachment = try? UNNotificationAttachment(identifier: "status_card", url: imgURL, options: nil) {
-                content.attachments = [attachment]
-            }
-        }
-
-        let req = UNNotificationRequest(identifier: "decade_bg_status", content: content, trigger: nil)
-        center.add(req, withCompletionHandler: nil)
-    }
-
     func updateNowPlayingInfo() {
         let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
         let cpu = jvm_bridge_get_cpu_usage_percent()
@@ -497,9 +479,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         let cardImage = generateNotificationCardImage(ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
 
         var info: [String: Any] = [
-            MPMediaItemPropertyTitle: "\(Int(ramMB)) MB RAM  •  \(Int(cpu))% CPU  •  Tab \(tabs)",
-            MPMediaItemPropertyArtist: "\(currentGameName) • Đang chạy nền",
-            MPMediaItemPropertyAlbumTitle: "Cập nhật \(timeString)",
+            MPMediaItemPropertyTitle: "🎮 \(currentGameName)",
+            MPMediaItemPropertyArtist: "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Tab: \(tabs)",
+            MPMediaItemPropertyAlbumTitle: "Đang chạy nền   •   Cập nhật \(timeString)",
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
@@ -511,8 +493,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         if #available(iOS 13.0, *) {
             MPNowPlayingInfoCenter.default().playbackState = .playing
         }
-
-        postLockScreenNotification(cardImage: cardImage, ramMB: ramMB, cpuPercent: cpu, tabCount: tabs, timeString: timeString)
+        // Thẻ trạng thái RAM/CPU/Tab được ghim cố định qua MPNowPlayingInfoCenter trên màn hình khóa.
+        // Tuyệt đối không dùng UNUserNotificationCenter ở đây để không làm nhảy banner thông báo liên tục!
     }
 
     /// Khởi động pipeline âm thanh hạ âm 18 Hz (-56 dB):
@@ -661,6 +643,9 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
                             self?.endAppBackgroundTask()
                         }
                     }
+                } else {
+                    // Cập nhật số liệu RAM, CPU trên thẻ màn hình khóa MPNowPlayingInfoCenter (hoàn toàn êm ái, không rơi banner)
+                    self.updateNowPlayingInfo()
                 }
             }
         }

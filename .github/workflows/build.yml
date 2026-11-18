@@ -83,29 +83,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.10-native
-          name: "Vạn Trần J2ME Native iOS v2.10"
+          tag_name: v2.11-native
+          name: "Vạn Trần J2ME Native iOS v2.11"
           body: |
-            ## Vạn Trần J2ME iOS v2.10 — Cập Nhật Setup Tức Thì & Tối Ưu UX Mượt Mà
+            ## Vạn Trần J2ME iOS v2.11 — Ghim Thẻ Trạng Thái Treo Nền Chuẩn Đẹp & Tự Động Kín Màn Hình
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - ⚡ **Cập nhật Thiết lập Setup Trong Game Ngay Lập Tức (Auto Nhóm, Tiện Ích, Config)**:
-              - Khắc phục triệt để lỗi thiết lập: Sửa bug ChoiceGroup (Radio/Checkbox) trong Java J2ME bị reset về rỗng khi bấm Lưu.
-              - Cơ chế đồng bộ hóa toàn diện (`syncAllTextFields`): Toàn bộ textfield (danh sách tên mời nhóm, khoảng cách, cài đặt) được đẩy tức thời vào bộ nhớ native và Java trước khi thực thi lệnh Lưu.
-              - Cập nhật giao diện ChoiceGroup tại chỗ mượt mà 120 FPS không giật lag, không hủy vẽ lại form, không làm mất con trỏ soạn thảo hay văng bàn phím.
-              - Mở khóa chuyển màn hình game `Display.setCurrent(canvas)` sau khi lưu: Cho phép game quay lại Canvas tức thì (hỗ trợ cả Thread ngầm, TimerTask, `callSerially`, phản hồi mạng RMS).
-              - Mở rộng bộ đệm form và text box lên 8KB với rào cản bộ nhớ `atomic_thread_fence`, không còn hiện tượng tràn bộ đệm hay đọc sót dữ liệu giữa các luồng.
-            - 🖐️ **Tối ưu thao tác người dùng (UX Optimization)**:
-              - Tích hợp phản hồi rung xúc giác chân thực (Haptic Feedback) khi chạm nút bấm, checkbox, radio button.
-              - Bàn phím gõ tiếng Việt (Telex/VNI) đồng bộ tức thì, hỗ trợ nút "✓ Xong" đóng bàn phím thông minh.
-              - Nâng kích thước hàng đợi sự kiện `INPUT_QUEUE_SIZE` lên 1024 sự kiện, loại bỏ hiện tượng nuốt nút khi thao tác nhanh.
-            - 🚀 **Tối ưu tốc độ mạng Up mượt**:
-              - Kích hoạt `TCP_NODELAY` loại bỏ trễ Nagle, gửi nhận gói tin tức thời không độ trễ.
-              - Mở rộng socket buffer 64KB, `SO_NOSIGPIPE`, `SO_KEEPALIVE` giữ luồng mạng sống ổn định.
-            - 📶 **Chuyển mạng thông minh (Smart Network Handover)**:
-              - Tự động luân chuyển luồng dữ liệu giữa **Wi-Fi** và **5G / 4G Dữ liệu di động** liền mạch qua `SO_FALLBACK_INTERFACE` của Darwin.
-            - 🛡️ **Treo nền tắt màn hình 24/7 không lo mất kết nối hay văng app**:
-              - Chế độ giữ nhịp âm thanh tần số thấp vô thanh liên tục với quyền `.playback` + `.mixWithOthers`.
-              - Ngắt render đồ họa khi màn hình khoá/chạy nền giúp tiết kiệm 95% CPU, chống bị iOS Jetsam kill.
+            - 📌 **Thẻ Trạng Thái Ghim Cố Định Trên Màn Hình Khóa / Thanh Thông Báo (NowPlaying Card)**:
+              - Thẻ trạng thái RAM, CPU, Tab, Giờ cập nhật chuẩn phong cách dark card cao cấp hiển thị cố định, tự động cập nhật số liệu thời gian thực.
+              - **Triệt để chấm dứt hiện tượng rơi/nhảy banner thông báo liên tục**: Cập nhật hoàn toàn êm ái qua `MPNowPlayingInfoCenter`, không spam banner, không làm phiền khi đang dùng máy khác hay lướt web.
+            - 🖥️ **Kích Thước Màn Hình "Tự Động" Kín Màn Hình Không Méo**:
+              - Tự động nhận diện và tính toán tỷ lệ màn hình thiết bị (iPhone tai thỏ, Dynamic Island, iPad), hiển thị kín toàn màn hình không có viền đen và không bị méo ảnh.
+            - 🎨 **Sửa Triệt Để Lỗi Render & Đơ Màn Hình**:
+              - Khắc phục lỗi lệch tầng CoreGraphics GState stack (depth lock = 1), sửa hoàn toàn lỗi hình ảnh bị méo, lộn ngược hoặc đứng hình khi vẽ clip rect phức tạp.
+              - Tách biệt kiểm soát FPS: Chạy 60/120 FPS siêu mượt khi chơi game, tự động chuyển về 20 FPS tiết kiệm pin tối đa khi chạy nền.
+            - ⚡ **Treo Nền 24/7 Xuyên Ngày Tháng**:
+              - Bộ giữ nhịp âm thanh tần số thấp vô thanh 18Hz kết hợp Watchdog tự động phục hồi kết nối.
+              - Cơ chế dọn dẹp RAM định kỳ (Auto Clean RAM) chống Jetsam kill khi treo dài hạn.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly, TrollStore hoặc 3uTools.
           files: J2ME-Decade.ipa
 
