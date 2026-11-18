@@ -407,6 +407,17 @@ class AppsListViewController: UIViewController,
         let icon: UIImage
         let fileSizeString: String
         let resolutionString: String
+
+        init(name: String, path: String, fileName: String, version: String?, vendor: String?, icon: UIImage, fileSizeString: String = "0 MB", resolutionString: String = "Tự Động") {
+            self.name = name
+            self.path = path
+            self.fileName = fileName
+            self.version = version
+            self.vendor = vendor
+            self.icon = icon
+            self.fileSizeString = fileSizeString
+            self.resolutionString = resolutionString
+        }
     }
     private var apps: [AppInfo] = []
 

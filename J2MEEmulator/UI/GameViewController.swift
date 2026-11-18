@@ -1116,7 +1116,9 @@ class GameViewController: UIViewController {
             fileName: fileName,
             version: "1.0",
             vendor: nil,
-            icon: appIcon
+            icon: appIcon,
+            fileSizeString: "0 MB",
+            resolutionString: "Tự Động"
         )
         let configVC = DecadeConfigViewController(app: appInfo, onStart: nil)
         let nav = UINavigationController(rootViewController: configVC)
