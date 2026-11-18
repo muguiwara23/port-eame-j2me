@@ -203,7 +203,11 @@ public abstract class Canvas extends Displayable {
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             repaintPending = false;
-            graphics.reset(clipX, clipY, clipW, clipH);
+            if (fullRepaint) {
+                graphics.reset(0, 0, width, height);
+            } else {
+                graphics.reset(clipX, clipY, clipW, clipH);
+            }
             paint(graphics);
             NativeBridge.flushToScreen(nativeContext);
             // Reset for next frame

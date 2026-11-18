@@ -24,18 +24,20 @@ public class Graphics {
     private int color = 0;
     private Font font = Font.getDefaultFont();
     private int translateX = 0, translateY = 0;
-    private int clipX, clipY, clipW, clipH;
+    private int absClipX, absClipY, clipW, clipH;
     private int strokeStyle = SOLID;
 
     Graphics(long nativeContext, int width, int height) {
         this.nativeContext = nativeContext;
         this.canvasWidth = width;
         this.canvasHeight = height;
-        this.clipX = 0;
-        this.clipY = 0;
+        this.absClipX = 0;
+        this.absClipY = 0;
         this.clipW = width;
         this.clipH = height;
-        // Apply default font to native context
+        // Apply default state to native context
+        setColor(0x000000);
+        setStrokeStyle(SOLID);
         font.applyToContext(nativeContext);
     }
 
@@ -45,14 +47,14 @@ public class Graphics {
     void reset(int clipX, int clipY, int clipW, int clipH) {
         this.translateX = 0;
         this.translateY = 0;
-        this.clipX = clipX;
-        this.clipY = clipY;
+        this.absClipX = clipX;
+        this.absClipY = clipY;
         this.clipW = clipW;
         this.clipH = clipH;
-        NativeBridge.setClip(nativeContext, clipX, clipY, clipW, clipH);
+        NativeBridge.setClip(nativeContext, absClipX, absClipY, clipW, clipH);
         setColor(0x000000);
         setFont(Font.getDefaultFont());
-        NativeBridge.setStrokeStyle(nativeContext, SOLID);
+        setStrokeStyle(SOLID);
     }
 
     // --- Color ---
@@ -101,26 +103,36 @@ public class Graphics {
     // --- Clip ---
 
     public void setClip(int x, int y, int w, int h) {
-        clipX = x;
-        clipY = y;
+        if (w < 0) w = 0;
+        if (h < 0) h = 0;
+        absClipX = x + translateX;
+        absClipY = y + translateY;
         clipW = w;
         clipH = h;
-        NativeBridge.setClip(nativeContext, x + translateX, y + translateY, w, h);
+        NativeBridge.setClip(nativeContext, absClipX, absClipY, clipW, clipH);
     }
 
     public void clipRect(int x, int y, int w, int h) {
-        // Intersect with current clip
-        int nx = Math.max(clipX, x);
-        int ny = Math.max(clipY, y);
-        int nw = Math.min(clipX + clipW, x + w) - nx;
-        int nh = Math.min(clipY + clipH, y + h) - ny;
+        if (w < 0) w = 0;
+        if (h < 0) h = 0;
+        // Intersect in absolute device coordinates per MIDP 2.0 spec
+        int ax = x + translateX;
+        int ay = y + translateY;
+        int nx = Math.max(absClipX, ax);
+        int ny = Math.max(absClipY, ay);
+        int nw = Math.min(absClipX + clipW, ax + w) - nx;
+        int nh = Math.min(absClipY + clipH, ay + h) - ny;
         if (nw < 0) nw = 0;
         if (nh < 0) nh = 0;
-        setClip(nx, ny, nw, nh);
+        absClipX = nx;
+        absClipY = ny;
+        clipW = nw;
+        clipH = nh;
+        NativeBridge.setClip(nativeContext, absClipX, absClipY, clipW, clipH);
     }
 
-    public int getClipX() { return clipX; }
-    public int getClipY() { return clipY; }
+    public int getClipX() { return absClipX - translateX; }
+    public int getClipY() { return absClipY - translateY; }
     public int getClipWidth() { return clipW; }
     public int getClipHeight() { return clipH; }
 

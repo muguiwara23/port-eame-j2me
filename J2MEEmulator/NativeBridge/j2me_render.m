@@ -43,6 +43,8 @@ typedef struct RenderContext {
     CTFontRef font;
     float fontSize;
     int fontStyle;
+    int currentArgb;
+    int strokeStyle;
     int clipSaved;
     int ownsPixels;
     _Atomic int32_t refcount;
@@ -215,9 +217,16 @@ static inline void rc_release(RenderContext *rc) {
         int pixels = rc->ownsPixels ? rc->width * rc->height * 4 : 0;
         CGContextRef ctx = rc->ctx;
         CTFontRef font = __atomic_exchange_n(&rc->font, NULL, __ATOMIC_ACQ_REL);
+        int wasSharedClipped = (!rc->ownsPixels && rc->clipSaved);
         rc->ctx = NULL;
+        rc->clipSaved = 0;
         rc->ownsPixels = 0;
-        if (ctx) CGContextRelease(ctx);
+        if (ctx) {
+            if (wasSharedClipped) {
+                CGContextRestoreGState(ctx);
+            }
+            CGContextRelease(ctx);
+        }
         if (font) CFRelease(font);
         if (pixels > 0) native_heap_sub(pixels);
         enqueue_dead_rc(rc);
@@ -283,6 +292,15 @@ static inline void setColorFromARGB(CGContextRef ctx, int argb) {
     CGContextSetRGBStrokeColor(ctx, r, g, b, a);
 }
 
+static inline void applyStrokeStyle(CGContextRef ctx, int style) {
+    if (style == 1) {
+        CGFloat dash[] = {2.0, 2.0};
+        CGContextSetLineDash(ctx, 0, dash, 2);
+    } else {
+        CGContextSetLineDash(ctx, 0, NULL, 0);
+    }
+}
+
 // ============================================================
 // Context management
 // ============================================================
@@ -305,8 +323,11 @@ static RenderContext *createRenderContext(int width, int height) {
 
     rc->fontSize = 14.0;
     rc->fontStyle = 0;
+    rc->currentArgb = (int)0xFF000000;
+    rc->strokeStyle = 0;
     rc->font = CTFontCreateWithName(CFSTR("Helvetica"), rc->fontSize, NULL);
     rc->ownsPixels = 1;
+    setColorFromARGB(rc->ctx, rc->currentArgb);
 
     track_rc(rc);
     native_heap_add(width * height * 4);
@@ -335,6 +356,9 @@ static RenderImage *createMutableImage(int width, int height) {
     CGContextClearRect(img->ctx, CGRectMake(0, 0, width, height));
     CGContextTranslateCTM(img->ctx, 0, height);
     CGContextScaleCTM(img->ctx, 1.0, -1.0);
+    CGContextSetLineWidth(img->ctx, 1.0);
+    CGContextSetLineCap(img->ctx, kCGLineCapSquare);
+    CGContextSetLineJoin(img->ctx, kCGLineJoinMiter);
 
     track_img(img);
     native_heap_add(width * height * 4);
@@ -449,7 +473,10 @@ static s32 n_setColor(Runtime *runtime, JClass *clazz) {
     s64 handle = env->localvar_getLong_2slot(runtime->localvar, 0);
     s32 argb = env->localvar_getInt(runtime->localvar, 2);
     RenderContext *rc = rc_acquire(handle);
-    if (rc) setColorFromARGB(rc->ctx, argb);
+    if (rc) {
+        rc->currentArgb = argb;
+        setColorFromARGB(rc->ctx, argb);
+    }
     rc_release(rc);
     return RUNTIME_STATUS_NORMAL;
 }
@@ -461,6 +488,8 @@ static s32 n_setClip(Runtime *runtime, JClass *clazz) {
     s32 y = env->localvar_getInt(runtime->localvar, 3);
     s32 w = env->localvar_getInt(runtime->localvar, 4);
     s32 h = env->localvar_getInt(runtime->localvar, 5);
+    if (w < 0) w = 0;
+    if (h < 0) h = 0;
     RenderContext *rc = rc_acquire(handle);
     if (rc) {
         if (rc->clipSaved) {
@@ -469,6 +498,10 @@ static s32 n_setClip(Runtime *runtime, JClass *clazz) {
         CGContextSaveGState(rc->ctx);
         rc->clipSaved = 1;
         CGContextClipToRect(rc->ctx, CGRectMake(x, y, w, h));
+        // Per J2ME MIDP 2.0 spec, setClip() MUST NOT alter current color or stroke style.
+        // CGContextRestoreGState() reverts them to the pre-clip state, so re-apply them now.
+        setColorFromARGB(rc->ctx, rc->currentArgb);
+        applyStrokeStyle(rc->ctx, rc->strokeStyle);
     }
     rc_release(rc);
     return RUNTIME_STATUS_NORMAL;
@@ -480,12 +513,8 @@ static s32 n_setStrokeStyle(Runtime *runtime, JClass *clazz) {
     s32 style = env->localvar_getInt(runtime->localvar, 2);
     RenderContext *rc = rc_acquire(handle);
     if (rc) {
-        if (style == 1) {
-            CGFloat dash[] = {2.0, 2.0};
-            CGContextSetLineDash(rc->ctx, 0, dash, 2);
-        } else {
-            CGContextSetLineDash(rc->ctx, 0, NULL, 0);
-        }
+        rc->strokeStyle = style;
+        applyStrokeStyle(rc->ctx, style);
     }
     rc_release(rc);
     return RUNTIME_STATUS_NORMAL;
@@ -868,8 +897,13 @@ static s32 n_getImageContext(Runtime *runtime, JClass *clazz) {
         rc->width = img->width;
         rc->height = img->height;
         rc->fontSize = 14.0;
+        rc->fontStyle = 0;
+        rc->currentArgb = (int)0xFF000000;
+        rc->strokeStyle = 0;
         rc->font = CTFontCreateWithName(CFSTR("Helvetica"), 14.0, NULL);
         rc->ownsPixels = 0; // pixels owned by the RenderImage, not this wrapper
+        setColorFromARGB(rc->ctx, rc->currentArgb);
+        applyStrokeStyle(rc->ctx, rc->strokeStyle);
         track_rc(rc);
         img_release(img);
         env->push_long(runtime->stack, (s64)(intptr_t)rc);
