@@ -635,17 +635,15 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             try? session.setActive(true, options: [])
 
             if audioPlayer == nil {
-                var player: AVAudioPlayer?
-                if let bundleURL = Bundle.main.url(forResource: "silent", withExtension: "wav") {
+                // Ưu tiên sub-audible 16Hz PCM phi số không để mediaserverd không bao giờ ngắt bộ khuếch đại do tưởng im lặng số
+                var player: AVAudioPlayer? = try? AVAudioPlayer(data: createSubaudible16HzWavData())
+                if player == nil, let bundleURL = Bundle.main.url(forResource: "silent", withExtension: "wav") {
                     player = try? AVAudioPlayer(contentsOf: bundleURL)
-                }
-                if player == nil {
-                    player = try? AVAudioPlayer(data: createSubaudible16HzWavData())
                 }
                 audioPlayer = player
                 audioPlayer?.delegate = self
                 audioPlayer?.numberOfLoops = -1
-                audioPlayer?.volume = 0.05
+                audioPlayer?.volume = 0.5
                 audioPlayer?.prepareToPlay()
             }
             if audioPlayer?.isPlaying == false {
