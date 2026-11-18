@@ -144,6 +144,7 @@ public class Display {
         running = true;
         eventQueue.startProcessing();
         System.out.println("[Display] Event loop started (" + screenWidth + "x" + screenHeight + ")");
+        boolean wasInBackground = false;
 
         while (running && !MIDlet.isDestroyRequested()) {
             // 0. Check if native side requested stop (e.g. user pressed Back)
@@ -158,6 +159,12 @@ public class Display {
             while ((nativeEvent = NativeBridge.pollInputEvent()) != null) {
                 try {
                     int type = nativeEvent[0];
+                    if (type == 0 && nativeEvent[1] == 0 && nativeEvent[2] == 0) {
+                        // iOS foreground wake up / unlock event: force immediate repaint
+                        if (current instanceof Canvas) {
+                            ((Canvas) current).forceFullRepaint();
+                        }
+                    }
                     if (type <= 2 && current instanceof Canvas) {
                         // Pointer event → post CanvasEvent
                         Canvas c = (Canvas) current;
@@ -229,6 +236,10 @@ public class Display {
             try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
             if (current instanceof Canvas) {
                 Canvas canvas = (Canvas) current;
+                if (!inBg && wasInBackground) {
+                    // Just woke up or entered foreground: force immediate full repaint!
+                    canvas.forceFullRepaint();
+                }
                 if (canvas.repaintPending) {
                     try {
                         canvas.doPaint();
@@ -237,6 +248,7 @@ public class Display {
                     }
                 }
             }
+            wasInBackground = inBg;
 
             // Sleep cleanly: 60ms in background (~16 wakeups/sec, eliminates iOS EXC_RESOURCE WAKEUPS kill!)
             // and 16ms in foreground (~60 FPS responsive).

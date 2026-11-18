@@ -35,6 +35,7 @@ class GameViewController: UIViewController {
     let fpsLimit: Int
     let layoutMode: GameLayoutMode
 
+    static var currentActiveGameVC: GameViewController?
     static var slotFrames: [Int: CGImage] = [:]
     static let slotFrameLock = NSLock()
 
@@ -51,6 +52,9 @@ class GameViewController: UIViewController {
         DispatchQueue.main.async {
             guard let vc = activeGameViewController,
                   vc.activeTabIndex == slot else { return }
+            if UIApplication.shared.applicationState == .active {
+                vc.isAppInBackground = false
+            }
             if vc.isAppInBackground {
                 if DecadePiPManager.shared.isPiPActive {
                     DecadePiPManager.shared.updateFrame(image)
@@ -333,6 +337,12 @@ class GameViewController: UIViewController {
             name: UIApplication.willEnterForegroundNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppForegroundChange),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
         // Observe live configuration change (instant apply without game restart)
         NotificationCenter.default.addObserver(
             self,
@@ -348,11 +358,28 @@ class GameViewController: UIViewController {
             object: nil
         )
         _ = DecadeNetworkManager.shared // Activate smart network monitor
+
+        GameViewController.currentActiveGameVC = self
+        NotificationCenter.default.post(name: NSNotification.Name("DecadeGameRunningStateChanged"), object: nil)
     }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        isAppInBackground = false
+        j2me_render_set_background(0)
+        j2me_input_post_key(0, 0)
+        if let img = GameViewController.slotFrames[self.activeTabIndex] {
+            self.emulatorView.displayImage(img)
+        }
+    }
+
+    private var hasStartedGame = false
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        startGame()
+        if !hasStartedGame {
+            startGame()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -975,7 +1002,7 @@ class GameViewController: UIViewController {
             self?.restartGameSession()
         }
         popup.onExitGame = { [weak self] in
-            self?.backTapped()
+            self?.forceExitGame()
         }
 
         popup.show(in: view)
@@ -1103,12 +1130,14 @@ class GameViewController: UIViewController {
 
     @objc private func handleAppForegroundChange() {
         isAppInBackground = false
+        j2me_render_set_background(0)
         // Request immediate frame redraw upon unlock
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             if let img = GameViewController.slotFrames[self.activeTabIndex] {
                 self.emulatorView.displayImage(img)
             }
+            j2me_input_post_key(0, 0)
         }
     }
 
@@ -1974,7 +2003,17 @@ class GameViewController: UIViewController {
     // ============================================================
 
     private func startGame() {
+        guard !hasStartedGame else {
+            isAppInBackground = false
+            j2me_render_set_background(0)
+            j2me_input_post_key(0, 0)
+            return
+        }
+        hasStartedGame = true
         isUserInitiatedExit = false
+        GameViewController.currentActiveGameVC = self
+        NotificationCenter.default.post(name: NSNotification.Name("DecadeGameRunningStateChanged"), object: nil)
+
         // Tự động kích hoạt chạy nền liên tục chuẩn NowPlaying/MediaPlayback và giữ kết nối không bị ngắt
         DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: appName)
         DecadeBackgroundKeeper.shared.setTreoActive(true)
@@ -1998,6 +2037,7 @@ class GameViewController: UIViewController {
 
     private func handleUnexpectedGameExit() {
         guard !isUserInitiatedExit else { return }
+        hasStartedGame = false
         DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: "\(appName) (Tự kết nối lại...)")
 
         showToast(message: "🔄 Game đã ngắt kết nối. Đang tự động kết nối lại sau 2 giây...")
@@ -2039,7 +2079,36 @@ class GameViewController: UIViewController {
     }
 
     @objc private func backTapped() {
+        let alert = UIAlertController(
+            title: "Trạng Thái Game",
+            message: "Bạn muốn tiếp tục treo game chạy nền 24/7 hay thoát game hoàn toàn?",
+            preferredStyle: .actionSheet
+        )
+        alert.addAction(UIAlertAction(title: "Ẩn & Treo ngầm (Giữ game chạy 24/7)", style: .default) { [weak self] _ in
+            self?.minimizeToLobby()
+        })
+        alert.addAction(UIAlertAction(title: "Thoát game hoàn toàn", style: .destructive) { [weak self] _ in
+            self?.forceExitGame()
+        })
+        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = backArrowBtn
+            popover.sourceRect = backArrowBtn.bounds
+        }
+        present(alert, animated: true)
+    }
+
+    func minimizeToLobby() {
+        isAppInBackground = false
+        dismiss(animated: true) {
+            NotificationCenter.default.post(name: NSNotification.Name("DecadeGameRunningStateChanged"), object: nil)
+        }
+    }
+
+    func forceExitGame() {
         isUserInitiatedExit = true
+        hasStartedGame = false
+        GameViewController.currentActiveGameVC = nil
         backButton.isEnabled = false
         autoShutdownTimer?.invalidate()
         autoShutdownTimer = nil
@@ -2062,6 +2131,7 @@ class GameViewController: UIViewController {
                 // Deep cleanup of all JVMs in background
                 DispatchQueue.global(qos: .background).async {
                     jvm_bridge_destroy_all()
+                    NotificationCenter.default.post(name: NSNotification.Name("DecadeGameRunningStateChanged"), object: nil)
                 }
             }
         }

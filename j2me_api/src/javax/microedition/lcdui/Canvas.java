@@ -50,9 +50,18 @@ public abstract class Canvas extends Displayable {
     private boolean fullScreen = false;
     // Dirty rect for partial repaint (J2ME clip region for paint())
     private int clipX, clipY, clipW, clipH;
-    private boolean fullRepaint = true;
+    public volatile boolean fullRepaint = true;
     // Lock to prevent concurrent doPaint from game thread + Display thread
     private final Object paintLock = new Object();
+
+    public void forceFullRepaint() {
+        fullRepaint = true;
+        clipX = 0;
+        clipY = 0;
+        clipW = width;
+        clipH = height;
+        repaintPending = true;
+    }
 
     // FPS limiting (matches J2ME-Loader's Canvas.limitFps)
     private static int fpsLimit = 30;
