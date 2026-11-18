@@ -667,13 +667,20 @@ class AppsListViewController: UIViewController,
         if w > 0 && h > 0 {
             return (w, h)
         }
-        // "Tự Động": Kín màn hình thiết bị, giữ nguyên tỷ lệ KHÔNG MÉO
+        // "Tự Động": Kín màn hình khu vực chơi game, giữ nguyên tỷ lệ KHÔNG MÉO
         let scale = UserDefaults.standard.object(forKey: "res_scale_\(gid)") as? Int ?? 360
-        let baseW = scale > 0 ? scale : 360
         let screen = UIScreen.main.bounds
         let sw = max(1.0, min(screen.width, screen.height))
         let sh = max(1.0, max(screen.width, screen.height))
-        var autoH = Int((Double(baseW) * (sh / sw)).rounded())
+
+        let isKbHidden = UserDefaults.standard.bool(forKey: "keypad_hidden_\(gid)")
+        let kpH: CGFloat = isKbHidden ? 0.0 : 280.0
+        let safeTop = UIApplication.shared.windows.first?.safeAreaInsets.top ?? 47.0
+        let topBarH: CGFloat = 44.0 + safeTop
+
+        let visibleH = max(120.0, sh - topBarH - kpH)
+        let baseW = scale > 0 ? scale : Int(sw)
+        var autoH = Int((Double(baseW) * Double(visibleH / sw)).rounded())
         if autoH % 2 != 0 { autoH += 1 }
         return (baseW, autoH)
     }

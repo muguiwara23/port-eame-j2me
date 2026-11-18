@@ -48,6 +48,7 @@ class DecadeConfigViewController: UIViewController {
     // State for Khi Chơi
     private let keyboardStatusLabel = UILabel()
     private let proxyStatusLabel = UILabel()
+    private let fillScreenSwitch = UISwitch()
     private let treoSwitch = UISwitch()
     private let autoCleanRamSwitch = UISwitch()
     private let soundSwitch = UISwitch()
@@ -225,6 +226,21 @@ class DecadeConfigViewController: UIViewController {
             sizeGrid.addArrangedSubview(rowStack)
         }
         cardStack.addArrangedSubview(sizeGrid)
+
+        // Divider
+        cardStack.addArrangedSubview(makeDivider())
+
+        // Row 1b: Kín Toàn Màn Hình (Không Viền Đen)
+        let fillRow = makeToggleRow(
+            icon: "aspectratio",
+            iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
+            iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
+            title: "Kín Màn Hình (Không Viền Đen)",
+            subtitle: "Tự động co giãn kín toàn khung hiển thị",
+            toggle: fillScreenSwitch,
+            action: #selector(fillScreenSwitchChanged(_:))
+        )
+        cardStack.addArrangedSubview(fillRow)
 
         // Divider
         cardStack.addArrangedSubview(makeDivider())
@@ -600,7 +616,15 @@ class DecadeConfigViewController: UIViewController {
         for (idx, btn) in screenSizeButtons.enumerated() {
             btn.isSelectedState = (idx == selectedScreenSizeIndex)
         }
+        if selectedScreenSizeIndex == 0 {
+            fillScreenSwitch.setOn(true, animated: true)
+        }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        saveValues()
+    }
+
+    @objc private func fillScreenSwitchChanged(_ sender: UISwitch) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         saveValues()
     }
 
@@ -752,6 +776,11 @@ class DecadeConfigViewController: UIViewController {
         // Treo khi ra ngoài: Mặc định luôn là TRUE
         treoSwitch.isOn = DecadeBackgroundKeeper.shared.isTreoActive
 
+        // Kín Màn Hình (Mặc định TRUE khi chọn Tự Động hoặc nếu chưa đặt)
+        let savedFill = defaults.object(forKey: "decade_fill_screen_\(gid)") as? Bool
+            ?? (savedW == 0 && savedH == 0 ? true : !(defaults.bool(forKey: "aspect_\(gid)")))
+        fillScreenSwitch.isOn = savedFill
+
         // Tự động dọn RAM: Mặc định luôn là TRUE
         autoCleanRamSwitch.isOn = DecadeBackgroundKeeper.shared.isAutoCleanRamActive
 
@@ -778,10 +807,21 @@ class DecadeConfigViewController: UIViewController {
 
         defaults.set(treoSwitch.isOn, forKey: "decade_treo_tat_man")
         defaults.set(soundSwitch.isOn, forKey: "decade_game_sound")
+        defaults.set(fillScreenSwitch.isOn, forKey: "decade_fill_screen_\(gid)")
+        defaults.set(!fillScreenSwitch.isOn, forKey: "aspect_\(gid)")
         defaults.synchronize()
 
         NotificationCenter.default.post(
             name: NSNotification.Name("DecadeConfigChanged"),
+            object: nil,
+            userInfo: [
+                "gid": gid,
+                "treo": treoSwitch.isOn,
+                "cleanRam": autoCleanRamSwitch.isOn,
+                "fillScreen": fillScreenSwitch.isOn,
+                "fps": sFps
+            ]
+        )
             object: nil,
             userInfo: [
                 "gid": gid,

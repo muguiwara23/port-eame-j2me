@@ -29,8 +29,8 @@ class GameViewController: UIViewController {
     var jarPath: String
     var appName: String
     var appIcon: UIImage
-    let canvasWidth: Int
-    let canvasHeight: Int
+    var canvasWidth: Int
+    var canvasHeight: Int
     let render3dScale: Int
     let fpsLimit: Int
     let layoutMode: GameLayoutMode
@@ -205,6 +205,17 @@ class GameViewController: UIViewController {
     }
 
     private var isAspectFitEnabled: Bool {
+        if let fill = UserDefaults.standard.object(forKey: "decade_fill_screen_\(currentGameId)") as? Bool {
+            return !fill
+        }
+        if let fill = UserDefaults.standard.object(forKey: "decade_fill_screen_\(legacyGameId)") as? Bool {
+            return !fill
+        }
+        let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
+        let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
+        if savedW == 0 || savedH == 0 {
+            return false // "Tự Động": Kín màn hình mặc định
+        }
         if let val = UserDefaults.standard.object(forKey: "aspect_\(currentGameId)") as? Bool {
             return val
         }
@@ -214,9 +225,40 @@ class GameViewController: UIViewController {
         return true
     }
 
+    func calculateAutoCanvasSize() -> (w: Int, h: Int) {
+        let gid = currentGameId
+        let scale = UserDefaults.standard.object(forKey: "res_scale_\(gid)") as? Int ?? 360
+
+        let viewW = view.bounds.width > 0 ? view.bounds.width : UIScreen.main.bounds.width
+        let viewH = view.bounds.height > 0 ? view.bounds.height : UIScreen.main.bounds.height
+
+        let safeTop = view.safeAreaInsets.top > 0 ? view.safeAreaInsets.top : (UIApplication.shared.windows.first?.safeAreaInsets.top ?? 47.0)
+        let topBarH: CGFloat = 44.0
+        let kpH: CGFloat = isKeypadHidden ? 0.0 : keypadCurrentHeight
+        let visibleH = max(100.0, viewH - safeTop - topBarH - kpH)
+
+        let baseW = scale > 0 ? scale : Int(viewW)
+        var autoH = Int((Double(baseW) * Double(visibleH / viewW)).rounded())
+        if autoH % 2 != 0 { autoH += 1 }
+        return (baseW, autoH)
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
+
+        let savedKbHidden = UserDefaults.standard.bool(forKey: "keypad_hidden_\(currentGameId)")
+        if savedKbHidden {
+            isKeypadHidden = true
+        }
+
+        let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
+        let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
+        if savedW == 0 || savedH == 0 {
+            let auto = calculateAutoCanvasSize()
+            canvasWidth = auto.w
+            canvasHeight = auto.h
+        }
 
         emulatorView.canvasWidth = canvasWidth
         emulatorView.canvasHeight = canvasHeight
@@ -229,13 +271,13 @@ class GameViewController: UIViewController {
         }
 
         // Apply saved configuration: Aspect ratio & Forced Fullscreen
+        let isAuto = (savedW == 0 || savedH == 0)
         let isForceFullscreen = isForceFullscreenEnabled
-        emulatorView.isAspectFit = isForceFullscreen ? false : isAspectFitEnabled
+        emulatorView.isAspectFit = isAuto ? false : (isForceFullscreen ? false : isAspectFitEnabled)
 
-        if isForceFullscreen {
-            isKeypadHidden = true
+        if isForceFullscreen || isKeypadHidden {
             decadeKeypadView?.isHidden = true
-            floatingShowKeypadBtn.isHidden = true
+            floatingShowKeypadBtn.isHidden = isForceFullscreen
             keypadHeightConstraint?.constant = 0
         }
 
@@ -974,6 +1016,16 @@ class GameViewController: UIViewController {
 
     private func restartGameSession() {
         showToast(message: "Đang khởi động lại game...")
+        let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
+        let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
+        let targetSize = (savedW > 0 && savedH > 0) ? (savedW, savedH) : calculateAutoCanvasSize()
+        self.canvasWidth = targetSize.0
+        self.canvasHeight = targetSize.1
+        self.emulatorView.canvasWidth = targetSize.0
+        self.emulatorView.canvasHeight = targetSize.1
+        let isAuto = (savedW == 0 || savedH == 0)
+        self.emulatorView.isAspectFit = isAuto ? false : (self.isForceFullscreenEnabled ? false : self.isAspectFitEnabled)
+
         let slot = Int32(self.activeTabIndex)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -1066,9 +1118,13 @@ class GameViewController: UIViewController {
     }
 
     @objc private func handleConfigChanged(_ notif: Notification) {
-        // Immediate live reload of settings without restarting game!
+        let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
+        let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
+        let targetSize = (savedW > 0 && savedH > 0) ? (savedW, savedH) : calculateAutoCanvasSize()
+
+        let isAuto = (savedW == 0 || savedH == 0)
         let isForceFullscreen = isForceFullscreenEnabled
-        emulatorView.isAspectFit = isForceFullscreen ? false : isAspectFitEnabled
+        emulatorView.isAspectFit = isAuto ? false : (isForceFullscreen ? false : isAspectFitEnabled)
 
         let savedLayout = (UserDefaults.standard.object(forKey: "keypad_layout_\(currentGameId)") as? Int) ??
                           (UserDefaults.standard.object(forKey: "keypad_layout_\(legacyGameId)") as? Int) ?? 0
@@ -1084,17 +1140,29 @@ class GameViewController: UIViewController {
             kp.keypadAlphaValue = (kp.currentLayout == .tuoitho) ? 1.0 : max(0.35, CGFloat(savedAlpha / 255.0))
         }
 
-        if isForceFullscreen {
+        let savedKbHidden = UserDefaults.standard.bool(forKey: "keypad_hidden_\(currentGameId)")
+        if isForceFullscreen || savedKbHidden {
             isKeypadHidden = true
             decadeKeypadView?.isHidden = true
-            floatingShowKeypadBtn.isHidden = true
+            floatingShowKeypadBtn.isHidden = isForceFullscreen
             keypadHeightConstraint?.constant = 0
         } else {
+            isKeypadHidden = false
             updateKeypadVisibility()
         }
 
         view.setNeedsLayout()
         view.layoutIfNeeded()
+
+        if targetSize.0 != self.canvasWidth || targetSize.1 != self.canvasHeight {
+            self.canvasWidth = targetSize.0
+            self.canvasHeight = targetSize.1
+            self.emulatorView.canvasWidth = targetSize.0
+            self.emulatorView.canvasHeight = targetSize.1
+            self.restartGameSession()
+            return
+        }
+
         showToast(message: "✅ Đã lưu và cập nhật thiết lập ngay lập tức!")
     }
 
@@ -1521,6 +1589,7 @@ class GameViewController: UIViewController {
     }
 
     private func updateKeypadVisibility() {
+        UserDefaults.standard.set(isKeypadHidden, forKey: "keypad_hidden_\(currentGameId)")
         decadeKeypadView?.isHidden = isKeypadHidden
         floatingShowKeypadBtn.isHidden = isForceFullscreenEnabled || !isKeypadHidden
         keypadHeightConstraint?.constant = isKeypadHidden ? 0 : keypadCurrentHeight
