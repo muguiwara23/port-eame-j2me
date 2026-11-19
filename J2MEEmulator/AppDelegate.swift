@@ -13,6 +13,8 @@ import MediaPlayer
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Port/eame: the app's output to Documents/port-eame-log.txt.
+        PELog.start()
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         // Yêu cầu quyền thông báo để hiển thị thẻ trạng thái trên thanh thông báo / màn hình khóa
