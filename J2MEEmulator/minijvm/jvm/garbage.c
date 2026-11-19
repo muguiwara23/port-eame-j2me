@@ -618,30 +618,44 @@ s32 _gc_pause_the_world(MiniJVM *jvm) {
     GcCollector *collector = jvm->collector;
     ArrayList *thread_list = jvm->thread_list;
     s32 i;
-    //jvm_printf("thread size:%d\n", thread_list->length);
     if (thread_list->length) {
         arraylist_iter_safe(thread_list, _list_iter_thread_pause, NULL);
 
-        //此处可能存在多线程交互，比如某个线程结束等情况，导致for错误
+        // Snapshot thread_list pointers under spinlock so we DO NOT hold
+        // thread_list->spinlock while waiting for threads to suspend.
+        // Holding spinlock across timedwait caused deadlocks on thread exit/start and 100% CPU spin!
         spin_lock(&thread_list->spinlock);
-        {
-            for (i = 0; i < thread_list->length; i++) {
-                Runtime *runtime = arraylist_get_value(thread_list, i);
-                if (_gc_wait_thread_suspend(jvm, runtime) == -1) {
-                    spin_unlock(&thread_list->spinlock);
-                    return -1;
-                }
-                gc_move_objs_thread_2_gc(runtime);
-
-#if _JVM_DEBUG_GARBAGE_DUMP > 1
-                Utf8String *stack = utf8_create();
-                getRuntimeStack(runtime, stack);
-                jvm_printf("%s\n", utf8_cstr(stack));
-                utf8_destroy(stack);
-#endif
-            }
+        s32 count = thread_list->length;
+        Runtime **snapshot = count > 0 ? (Runtime **) jvm_calloc(count * sizeof(Runtime *)) : NULL;
+        for (i = 0; i < count; i++) {
+            snapshot[i] = (Runtime *) arraylist_get_value_unsafe(thread_list, i);
         }
         spin_unlock(&thread_list->spinlock);
+
+        s32 failed = 0;
+        if (snapshot) {
+            for (i = 0; i < count; i++) {
+                Runtime *runtime = snapshot[i];
+                if (runtime) {
+                    if (_gc_wait_thread_suspend(jvm, runtime) == -1) {
+                        failed = -1;
+                        break;
+                    }
+                    gc_move_objs_thread_2_gc(runtime);
+
+#if _JVM_DEBUG_GARBAGE_DUMP > 1
+                    Utf8String *stack = utf8_create();
+                    getRuntimeStack(runtime, stack);
+                    jvm_printf("%s\n", utf8_cstr(stack));
+                    utf8_destroy(stack);
+#endif
+                }
+            }
+            jvm_free(snapshot);
+        }
+        if (failed) {
+            return -1;
+        }
     }
     gc_move_objs_thread_2_gc(collector->runtime);// maybe someone new object in finalize...
 
@@ -652,18 +666,29 @@ s32 _gc_resume_the_world(MiniJVM *jvm) {
     GcCollector *collector = jvm->collector;
     ArrayList *thread_list = jvm->thread_list;
     s32 i;
-    for (i = 0; i < thread_list->length; i++) {
-        Runtime *runtime = arraylist_get_value(thread_list, i);
-        if (runtime) {
+    spin_lock(&thread_list->spinlock);
+    s32 count = thread_list->length;
+    Runtime **snapshot = count > 0 ? (Runtime **) jvm_calloc(count * sizeof(Runtime *)) : NULL;
+    for (i = 0; i < count; i++) {
+        snapshot[i] = (Runtime *) arraylist_get_value_unsafe(thread_list, i);
+    }
+    spin_unlock(&thread_list->spinlock);
+
+    if (snapshot) {
+        for (i = 0; i < count; i++) {
+            Runtime *runtime = snapshot[i];
+            if (runtime && runtime->thrd_info) {
 #if _JVM_DEBUG_GARBAGE_DUMP > 1
-            Utf8String *stack = utf8_create();
-            getRuntimeStack(runtime, stack);
-            jvm_printf("%s\n", utf8_cstr(stack));
-            utf8_destroy(stack);
+                Utf8String *stack = utf8_create();
+                getRuntimeStack(runtime, stack);
+                jvm_printf("%s\n", utf8_cstr(stack));
+                utf8_destroy(stack);
 #endif
-            jthread_resume(runtime);
-            vm_share_notifyall(jvm);
+                jthread_resume(runtime);
+            }
         }
+        vm_share_notifyall(jvm);
+        jvm_free(snapshot);
     }
 
     return 0;
@@ -671,15 +696,32 @@ s32 _gc_resume_the_world(MiniJVM *jvm) {
 
 
 s32 _gc_wait_thread_suspend(MiniJVM *jvm, Runtime *runtime) {
-    if (runtime->thrd_info->thread_status == THREAD_STATUS_NEW || runtime->thrd_info->thread_status == THREAD_STATUS_ZOMBIE) {
+    if (!runtime || !runtime->thrd_info) {
         return 0;
     }
+    if (runtime->thrd_info->thread_status == THREAD_STATUS_NEW ||
+        runtime->thrd_info->thread_status == THREAD_STATUS_ZOMBIE ||
+        runtime->thrd_info->is_stop) {
+        return 0;
+    }
+    s32 wait_count = 0;
     while (!(runtime->thrd_info->is_suspend ||  /// While executing bytecode, if suspend_count is not 0, pause bytecode execution and set is_suspend = 1
              runtime->thrd_info->is_blocking)  // During certain IO waits, JNI sets is_blocking = 1
             ) { //
+        if (runtime->thrd_info->thread_status == THREAD_STATUS_ZOMBIE ||
+            runtime->thrd_info->thread_status == THREAD_STATUS_NEW ||
+            runtime->thrd_info->is_stop) {
+            break;
+        }
         vm_share_notifyall(jvm);
         vm_share_timedwait(jvm, 100);
         if (jvm->collector->_garbage_thread_status != GARBAGE_THREAD_NORMAL) {
+            return -1;
+        }
+        wait_count++;
+        if (wait_count > 20) { // 2.0 seconds timeout: safely cancel GC cycle rather than hanging VM permanently!
+            jvm_printf("[WARN] _gc_wait_thread_suspend timed out (2.0s) waiting for thread %llx (status=%d)\n",
+                       (s64)(intptr_t)runtime, (int)runtime->thrd_info->thread_status);
             return -1;
         }
     }

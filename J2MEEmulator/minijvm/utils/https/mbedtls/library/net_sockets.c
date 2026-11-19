@@ -478,7 +478,7 @@ int mbedtls_net_recv( void *ctx, unsigned char *buf, size_t len )
         if( WSAGetLastError() == WSAECONNRESET )
             return( MBEDTLS_ERR_NET_CONN_RESET );
 #else
-        if( errno == EPIPE || errno == ECONNRESET )
+        if( errno == EPIPE || errno == ECONNRESET || errno == ETIMEDOUT || errno == ENOTCONN || errno == EBADF )
             return( MBEDTLS_ERR_NET_CONN_RESET );
 
         if( errno == EINTR )

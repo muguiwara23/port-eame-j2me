@@ -83,23 +83,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v2.18-native
-          name: "Vạn Trần J2ME Native iOS v2.18"
+          tag_name: v2.19-native
+          name: "Vạn Trần J2ME Native iOS v2.19"
           body: |
-            ## Vạn Trần J2ME iOS v2.18 — Giao Diện "Chơi Game Tuổi Thơ" & Khắc Phục Triệt Để Đơ Màn Hình Khi Treo Lâu
+            ## Vạn Trần J2ME iOS v2.19 — Khắc Phục Triệt Để Hiện Tượng Treo Đơ 57 Phút (17% CPU Spin & GC Deadlock)
             - **Tác giả**: **Vạn Trần idol J2me NSV IOS**
-            - 🎮 **Giao Diện "Chơi Game Tuổi Thơ" Hiện Đại (Chuẩn 1:1 Theo Ảnh Mẫu)**:
-              - **Thẻ Game Card Tinh Tế**: Hiển thị đầy đủ thông tin game, phiên bản, dung lượng (`v1.6.12 • 1.7 MB`), nhãn tỷ lệ màn hình `[🔲] Tự Động`.
-              - **Trạng Thái Đang Chạy Sống Động**: Huy hiệu `🟢 Đang Chạy` (xanh lá cây) khi game đang chạy ngầm 24/7 và `⚪️ Đã Dừng` (xám) khi chưa chạy.
-              - **Tiêu đề đếm số game**: `Đang Chạy: X / Y Game` cập nhật theo thời gian thực.
-              - **Khôi phục game mượt mà**: Bấm vào game đang chạy sẽ lập tức khôi phục màn hình chơi game mà không bị khởi động lại từ đầu.
-              - **Thanh Điều Hướng 5 Tab Hiện Đại**: `Kho Game`, `Treo 24/7`, `Đang Chạy` (kèm số thông báo đỏ đếm game đang chạy), `Tài Khoản`, `Cài Đặt`.
-            - 🛡️ **Khắc Phục Triệt Để Hiện Tượng Đơ Màn Hình Khi Mở Khóa / Treo Lâu**:
-              - **Tự động ép vẽ lại màn hình (Force Canvas Repaint)**: Khi mở khóa màn hình hoặc chuyển từ chế độ chạy ngầm sang màn hình sáng, giả lập lập tức kích hoạt vẽ lại toàn bộ khung hình Java Canvas mới nhất, xóa bỏ triệt để hiện tượng đơ hình ảnh cũ.
-              - **Đồng bộ trạng thái ứng dụng Active**: Bổ sung cơ chế giám sát `didBecomeActiveNotification` để khôi phục render đồ hoạ ngay cả khi người dùng gạt thanh thông báo hoặc vuốt mở khóa.
-              - **Treo ngầm mượt mà không văng**: Hỗ trợ tính năng "Ẩn & Treo ngầm (Giữ game chạy 24/7)" khi bấm nút Quay lại (Back), giữ game chạy thông suốt trong nền.
-            - 📍 **Chế Độ Treo Định Vị BTS Tiết Kiệm Pin Tối Đa (0% Pin, Không Cần Audio)**:
-              - Giữ kết nối ngầm bằng trạm sóng BTS di động (`kCLLocationAccuracyThreeKilometers`), TẮT HOÀN TOÀN chip GPS vệ tinh và audio keepalive giúp máy mát lạnh.
+            - 🛡️ **Khắc Phục Triệt Để Lỗi Treo Đơ Sau ~57 Phút (CPU 17% / 100% Core Spin)**:
+              - **Chấm dứt Deadlock GC Stop-The-World**: Trong MiniJVM, cơ chế `_gc_pause_the_world` trước đây giữ `thread_list->spinlock` trong lúc chờ các luồng Java tạm dừng qua `vm_share_timedwait`. Khi có luồng Java kết thúc hoặc bắt đầu gọi `threadlist_remove`/`add`, luồng đó bị kẹt trong vòng lặp spinlock 100% CPU (chiếm đúng 16.7% ≈ 17% CPU của chip 6 nhân Apple A-series). Phiên bản v2.19 đã tạo bản sao an toàn (snapshot) danh sách luồng trước khi chờ và bổ sung cơ chế timeout 2.0s tự phục hồi, triệt tiêu hoàn toàn khả năng deadlock.
+              - **Tối ưu Spinlock thích ứng & Nhường CPU**: Nâng cấp `spin_lock_count` trong `spinlock.h` với cơ chế `thrd_yield()` sau 64 chu kỳ tự xoay, ngăn chặn hiện tượng luồng chiếm dụng 100% một nhân CPU vô tận khi có tranh chấp tài nguyên.
+              - **Khắc phục Vòng lặp Nhận Socket 0-Byte (Spurious EINTR Spin)**: Trong `sock_recv` (`jni_io.c`), các tín hiệu hệ thống ngắt (`EINTR`) trên socket chặn trước đây trả về mã 0 cho Java khiến vòng lặp đọc `DataInputStream.readFully()` quay cuồng với 100% CPU. Đã sửa để tự động retry an toàn và phát hiện đứt kết nối mạng nhà mạng (NAT timeout sau 1 tiếng) ngay lập tức.
+            - 🎮 **Giao Diện "Chơi Game Tuổi Thơ" Chuẩn 1:1 Theo Ảnh Mẫu**:
+              - Thẻ Game Card hiện đại: `v1.6.12 • 1.7 MB`, `[🔲] Tự Động`, huy hiệu `🟢 Đang Chạy` / `⚪️ Đã Dừng`.
+              - Tiêu đề đếm số game: `Đang Chạy: X / Y Game` theo thời gian thực.
+              - Thanh điều hướng 5 Tab: `Kho Game`, `Treo 24/7`, `Đang Chạy` (kèm badge đỏ), `Tài Khoản`, `Cài Đặt`.
+              - Tùy chọn "Ẩn & Treo ngầm (Giữ game chạy 24/7)" khi bấm nút Quay lại (Back).
+            - 📍 **Chế Độ Treo Định Vị BTS & Audio Chạy Ngầm 24/7 Không Nóng Máy**:
+              - Duy trì kết nối mạng không bị iOS trảm, không tiêu tốn pin.
             - **Cài đặt**: Tải file `J2ME-Decade.ipa` bên dưới rồi cài qua Sideloadly, TrollStore hoặc 3uTools.
           files: J2ME-Decade.ipa
 

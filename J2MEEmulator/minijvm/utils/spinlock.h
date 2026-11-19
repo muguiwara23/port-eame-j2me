@@ -137,6 +137,7 @@ static inline int spin_destroy(spinlock_t *lock) {
 }
 
 static inline int spin_lock_count(volatile spinlock_t *lock, s32 count) {
+    s32 spins = 0;
     for (;;) {
         if (thrd_equal(lock->owner, thrd_current())) {
             ATOMIC_INC(&lock->count);
@@ -146,6 +147,11 @@ static inline int spin_lock_count(volatile spinlock_t *lock, s32 count) {
             lock->owner = thrd_current();
             lock->count = 1;
             return 0;
+        }
+        spins++;
+        if (spins >= 64) {
+            spins = 0;
+            thrd_yield();
         }
     }
 }

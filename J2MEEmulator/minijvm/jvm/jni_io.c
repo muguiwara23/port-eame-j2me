@@ -268,11 +268,11 @@ extern s32 os_mkdir(const c8 *path);
 
 s32 org_mini_net_SocketNative_open0(Runtime *runtime, JClass *clazz) {
     RuntimeStack *stack = runtime->stack;
-    jthread_block_enter(runtime);
     Instance *vmarr = jarray_create_by_type_index(runtime, sizeof(VmSock), DATATYPE_BYTE);
-    mbedtls_net_context *ctx = &((VmSock *) vmarr->arr_body)->contex;
-    mbedtls_net_init(ctx);
-    jthread_block_exit(runtime);
+    if (vmarr) {
+        mbedtls_net_context *ctx = &((VmSock *) vmarr->arr_body)->contex;
+        mbedtls_net_init(ctx);
+    }
 #if _JVM_DEBUG_LOG_LEVEL > 5
     invoke_deepth(runtime);
     jvm_printf("org_mini_net_SocketNative_open0  \n");
@@ -414,9 +414,14 @@ static s32 sock_recv(VmSock *vmsock, u8 *buf, s32 count, Runtime *runtime) {
             }
             thrd_yield();
             continue;
-        } else if (ret == MBEDTLS_ERR_SSL_WANT_READ) {//nonblock
-            ret = 0;
-            break;
+        } else if (ret == MBEDTLS_ERR_SSL_WANT_READ) {
+            if (vmsock->non_block) {
+                ret = 0;
+                break;
+            }
+            // On blocking sockets, WANT_READ (e.g. from EINTR) means retry, NOT return 0 to Java!
+            thrd_yield();
+            continue;
         } else if (ret <= 0) {
             ret = -1;
             break;
@@ -458,7 +463,7 @@ s32 org_mini_net_SocketNative_readByte(Runtime *runtime, JClass *clazz) {
         ret = sock_recv(vmsock, &b, 1, runtime);
         jthread_block_exit(runtime);
     }
-    push_int(runtime->stack, ret < 0 ? ret : (u8) b);
+    push_int(runtime->stack, ret <= 0 ? -1 : (u8) b);
 
 #if _JVM_DEBUG_LOG_LEVEL > 5
     invoke_deepth(runtime);
@@ -478,13 +483,23 @@ s32 org_mini_net_SocketNative_writeBuf(Runtime *runtime, JClass *clazz) {
         VmSock *vmsock = (VmSock *) vmarr->arr_body;
         mbedtls_net_context *ctx = &vmsock->contex;
         jthread_block_enter(runtime);
-        ret = mbedtls_net_send(ctx, (const u8 *) jbyte_arr->arr_body + offset, count);
-        jthread_block_exit(runtime);
-        if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-            ret = 0;
-        } else if (ret < 0) {
-            ret = -1;
+        while (1) {
+            ret = mbedtls_net_send(ctx, (const u8 *) jbyte_arr->arr_body + offset, count);
+            if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (vmsock->non_block) {
+                    ret = 0;
+                    break;
+                }
+                thrd_yield();
+                continue;
+            } else if (ret < 0) {
+                ret = -1;
+                break;
+            } else {
+                break;
+            }
         }
+        jthread_block_exit(runtime);
     }
     push_int(runtime->stack, ret);
 #if _JVM_DEBUG_LOG_LEVEL > 5
@@ -503,13 +518,23 @@ s32 org_mini_net_SocketNative_writeByte(Runtime *runtime, JClass *clazz) {
         VmSock *vmsock = (VmSock *) vmarr->arr_body;
         mbedtls_net_context *ctx = &vmsock->contex;
         jthread_block_enter(runtime);
-        ret = mbedtls_net_send(ctx, &b, 1);
-        jthread_block_exit(runtime);
-        if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
-            ret = 0;
-        } else if (ret < 0) {
-            ret = -1;
+        while (1) {
+            ret = mbedtls_net_send(ctx, &b, 1);
+            if (ret == MBEDTLS_ERR_SSL_WANT_WRITE) {
+                if (vmsock->non_block) {
+                    ret = 0;
+                    break;
+                }
+                thrd_yield();
+                continue;
+            } else if (ret < 0) {
+                ret = -1;
+                break;
+            } else {
+                break;
+            }
         }
+        jthread_block_exit(runtime);
     }
 #if _JVM_DEBUG_LOG_LEVEL > 5
     invoke_deepth(runtime);
