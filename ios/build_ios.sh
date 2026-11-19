@@ -23,7 +23,8 @@ else
 fi
 
 porteame_xcodebuild "$root/J2MEEmulator.xcodeproj" J2MEEmulator \
-    PRODUCT_BUNDLE_IDENTIFIER=org.porteame.java
+    PRODUCT_BUNDLE_IDENTIFIER=org.porteame.java \
+    GCC_OPTIMIZATION_LEVEL=3
 
 app="$PORTEAME_WORK/xcode/Release-iphoneos/JarBox.app"
 porteame_check_binary "$app/JarBox"

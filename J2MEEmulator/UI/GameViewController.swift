@@ -36,6 +36,13 @@ class GameViewController: UIViewController {
     let layoutMode: GameLayoutMode
 
     static var currentActiveGameVC: GameViewController?
+
+    // Port/eame: its own game screen (PortEame/PEPadView.swift and the
+    // extension at the end of this file): the game's picture at its own size,
+    // floating keys, the orientation the game wants. Set by the launcher.
+    var porteameMode = false
+    let pePad = PEPadView()
+    let peScanlines = UIView()
     static var slotFrames: [Int: CGImage] = [:]
     static let slotFrameLock = NSLock()
 
@@ -184,14 +191,17 @@ class GameViewController: UIViewController {
 
     private var alertTimeoutWork: DispatchWorkItem?
 
-    override var prefersStatusBarHidden: Bool { false }
-    override var preferredStatusBarStyle: UIStatusBarStyle { .darkContent }
+    override var prefersStatusBarHidden: Bool { porteameMode }
+    override var preferredStatusBarStyle: UIStatusBarStyle { porteameMode ? .lightContent : .darkContent }
+    override var prefersHomeIndicatorAutoHidden: Bool { porteameMode }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        if porteameMode { return canvasWidth > canvasHeight ? .landscape : .portrait }
         return .allButUpsideDown
     }
 
     override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
+        if porteameMode && canvasWidth > canvasHeight { return .landscapeRight }
         return .portrait
     }
 
@@ -259,7 +269,7 @@ class GameViewController: UIViewController {
 
         let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
         let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
-        if savedW == 0 || savedH == 0 {
+        if !porteameMode && (savedW == 0 || savedH == 0) {
             let auto = calculateAutoCanvasSize()
             canvasWidth = auto.w
             canvasHeight = auto.h
@@ -268,19 +278,23 @@ class GameViewController: UIViewController {
         emulatorView.canvasWidth = canvasWidth
         emulatorView.canvasHeight = canvasHeight
 
-        switch layoutMode {
-        case .decade:
-            setupDecadeLayout()
-        case .ngage:
-            setupNGageLayout()
+        if porteameMode {
+            setupPortEameLayout()
+        } else {
+            switch layoutMode {
+            case .decade:
+                setupDecadeLayout()
+            case .ngage:
+                setupNGageLayout()
+            }
         }
 
         // Apply saved configuration: Aspect ratio & Forced Fullscreen
         let isAuto = (savedW == 0 || savedH == 0)
         let isForceFullscreen = isForceFullscreenEnabled
-        emulatorView.isAspectFit = isAuto ? false : (isForceFullscreen ? false : isAspectFitEnabled)
+        emulatorView.isAspectFit = porteameMode ? true : (isAuto ? false : (isForceFullscreen ? false : isAspectFitEnabled))
 
-        if isForceFullscreen || isKeypadHidden {
+        if !porteameMode && (isForceFullscreen || isKeypadHidden) {
             decadeKeypadView?.isHidden = true
             floatingShowKeypadBtn.isHidden = isForceFullscreen
             keypadHeightConstraint?.constant = 0
@@ -386,6 +400,7 @@ class GameViewController: UIViewController {
         super.viewDidLayoutSubviews()
         pipHostView.frame = CGRect(x: 0, y: 0, width: 2, height: 2)
         DecadePiPManager.shared.updateLayout()
+        if porteameMode { peLayout() }
     }
 
     // ============================================================
@@ -1248,6 +1263,7 @@ class GameViewController: UIViewController {
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         let isLandscape = size.width > size.height
+        if porteameMode { return }
         coordinator.animate(alongsideTransition: { [weak self] _ in
             self?.adjustLayoutForOrientation(isLandscape: isLandscape)
         }, completion: nil)
@@ -1919,6 +1935,7 @@ class GameViewController: UIViewController {
         textBoxView.isHidden = true
         formView.isHidden = true
         listView.isHidden = true
+        peSyncPad()
     }
 
     func showTextBoxView() {
@@ -1932,6 +1949,7 @@ class GameViewController: UIViewController {
         formView.isHidden = true
         listView.isHidden = true
         view.bringSubviewToFront(textBoxView)
+        peSyncPad()
     }
 
     func showFormView() {
@@ -1945,6 +1963,7 @@ class GameViewController: UIViewController {
         textBoxView.isHidden = true
         listView.isHidden = true
         view.bringSubviewToFront(formView)
+        peSyncPad()
     }
 
     func showListView() {
@@ -1958,6 +1977,7 @@ class GameViewController: UIViewController {
         textBoxView.isHidden = true
         formView.isHidden = true
         view.bringSubviewToFront(listView)
+        peSyncPad()
     }
 
     func showAlert() {
@@ -2029,6 +2049,11 @@ class GameViewController: UIViewController {
                     if self.presentingViewController != nil {
                         self.dismiss(animated: true)
                     }
+                } else if self.porteameMode {
+                    // Port/eame: the game closed itself (its own Exit): back
+                    // to the launcher, not a restart.
+                    print("Port/eame: the game closed itself")
+                    self.peCloseToLauncher()
                 } else {
                     print("[Swift] MIDlet finished unexpectedly while hanging (user did not tap Back)!")
                     self.handleUnexpectedGameExit()
@@ -2279,4 +2304,209 @@ let slotFlushCallback: @convention(c) (Int32, UnsafeMutableRawPointer?, Int32, I
     let cgImage = Unmanaged<CGImage>.fromOpaque(ptr).takeRetainedValue()
     let slotIdx = Int(slot)
     GameViewController.updateSlotFrame(slot: slotIdx, image: cgImage)
+}
+
+// ============================================================
+// MARK: - Port/eame game screen
+// ============================================================
+// The game's picture at the size the game was made for (240 x 320 and so on),
+// scaled as the player chooses: pixel perfect (whole multiples of the
+// screen's pixels), sharp (as large as fits, hard pixels) or smooth; optional
+// scan lines. The phone keys float over the free space (PEPadView); MENU
+// holds the port's options. The screen turns the way the game is drawn.
+
+extension GameViewController {
+    enum PEScale: Int {
+        case pixelPerfect = 0, sharp = 1, smooth = 2
+
+        var title: String {
+            switch self {
+            case .pixelPerfect: return "Pixel perfect (pixeles exactos)"
+            case .sharp: return "Nítida (lo más grande posible)"
+            case .smooth: return "Suave"
+            }
+        }
+    }
+
+    var peScale: PEScale {
+        let raw = UserDefaults.standard.object(forKey: "pe_scale_\(currentGameId)") as? Int ?? PEScale.sharp.rawValue
+        return PEScale(rawValue: raw) ?? .sharp
+    }
+
+    private var peScanlinesOn: Bool {
+        UserDefaults.standard.bool(forKey: "pe_scanlines_\(currentGameId)")
+    }
+
+    func setupPortEameLayout() {
+        view.backgroundColor = .black
+        emulatorView.translatesAutoresizingMaskIntoConstraints = true
+        emulatorView.backgroundColor = .black
+        view.addSubview(emulatorView)
+
+        peScanlines.isUserInteractionEnabled = false
+        peScanlines.isHidden = true
+        view.addSubview(peScanlines)
+
+        // The game's own screens (forms, lists, text boxes) fill the screen.
+        let guide = view.safeAreaLayoutGuide
+        for v: UIView in [textBoxView, formView, listView] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(v)
+            v.isHidden = true
+            NSLayoutConstraint.activate([
+                v.topAnchor.constraint(equalTo: guide.topAnchor),
+                v.leadingAnchor.constraint(equalTo: guide.leadingAnchor),
+                v.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
+                v.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ])
+        }
+
+        pePad.onMenu = { [weak self] in self?.peShowMenu() }
+        view.addSubview(pePad)
+        peApplyScale()
+    }
+
+    /// The picture's place: below it the keys when upright; centred when turned.
+    func peLayout() {
+        let bounds = view.bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let safe = bounds.inset(by: view.safeAreaInsets)
+        let landscape = bounds.width > bounds.height
+        var area = safe
+        if !landscape && !pePad.controlsHidden {
+            let controls = min(safe.height * 0.40, 330)
+            area.size.height = max(safe.height - controls, safe.height * 0.5)
+        }
+        let rect = peGameRect(in: area)
+        emulatorView.frame = rect
+        peScanlines.frame = rect
+        pePad.frame = bounds
+        pePad.layout(game: rect, safe: safe, landscape: landscape)
+        peUpdateScanlines(for: rect)
+        peSyncPad()
+    }
+
+    private func peGameRect(in area: CGRect) -> CGRect {
+        let cw = CGFloat(max(canvasWidth, 1)), ch = CGFloat(max(canvasHeight, 1))
+        let screenScale = view.window?.screen.scale ?? UIScreen.main.scale
+        var scale = min(area.width / cw, area.height / ch) // points per game pixel
+        if peScale == .pixelPerfect {
+            let whole = floor(scale * screenScale)
+            if whole >= 1 { scale = whole / screenScale }
+        }
+        let w = cw * scale, h = ch * scale
+        let snap = { (value: CGFloat) -> CGFloat in (value * screenScale).rounded() / screenScale }
+        return CGRect(x: snap(area.midX - w / 2), y: snap(area.midY - h / 2), width: w, height: h)
+    }
+
+    func peApplyScale() {
+        let filter: CALayerContentsFilter = peScale == .smooth ? .linear : .nearest
+        emulatorView.layer.magnificationFilter = filter
+        emulatorView.layer.minificationFilter = filter
+        view.setNeedsLayout()
+    }
+
+    /// Scan lines: one dark line under each row of the game's pixels.
+    private func peUpdateScanlines(for rect: CGRect) {
+        let row = rect.height / CGFloat(max(canvasHeight, 1))
+        guard peScanlinesOn, row >= 2 else {
+            peScanlines.backgroundColor = .clear
+            return
+        }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+        let tile = UIGraphicsImageRenderer(size: CGSize(width: 2, height: row), format: format).image { _ in
+            UIColor(white: 0, alpha: 0.32).setFill()
+            UIRectFill(CGRect(x: 0, y: row * 0.62, width: 2, height: row * 0.38))
+        }
+        peScanlines.backgroundColor = UIColor(patternImage: tile)
+    }
+
+    /// The keys show only over the game's picture, not over its forms.
+    func peSyncPad() {
+        guard porteameMode else { return }
+        let canvas = !emulatorView.isHidden
+        pePad.isHidden = !canvas
+        peScanlines.isHidden = !canvas || !peScanlinesOn
+        if canvas {
+            view.bringSubviewToFront(peScanlines)
+            view.bringSubviewToFront(pePad)
+        } else {
+            pePad.releaseAll()
+        }
+    }
+
+    func peShowMenu() {
+        pePad.releaseAll()
+        let sheet = UIAlertController(title: appName, message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Escribir texto", style: .default) { [weak self] _ in
+            self?.promptTextInput()
+        })
+        sheet.addAction(UIAlertAction(title: pePad.numbersShown ? "Ocultar teclas numéricas" : "Teclas numéricas (1-9, *, 0, #)",
+                                      style: .default) { [weak self] _ in
+            self?.pePad.toggleNumbers()
+        })
+        sheet.addAction(UIAlertAction(title: "Imagen: \(peScale.title)", style: .default) { [weak self] _ in
+            self?.peChooseScale()
+        })
+        let scanlines = peScanlinesOn
+        sheet.addAction(UIAlertAction(title: scanlines ? "Quitar líneas de pantalla" : "Líneas de pantalla (estilo CRT)",
+                                      style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            UserDefaults.standard.set(!scanlines, forKey: "pe_scanlines_\(self.currentGameId)")
+            self.peApplyScale()
+        })
+        sheet.addAction(UIAlertAction(title: pePad.controlsHidden ? "Mostrar controles" : "Ocultar controles",
+                                      style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            self.pePad.controlsHidden.toggle()
+            self.view.setNeedsLayout()
+        })
+        sheet.addAction(UIAlertAction(title: "Volver al inicio (el juego queda abierto)", style: .default) { [weak self] _ in
+            self?.minimizeToLobby()
+        })
+        sheet.addAction(UIAlertAction(title: "Cerrar el juego", style: .destructive) { [weak self] _ in
+            self?.forceExitGame()
+        })
+        sheet.addAction(UIAlertAction(title: "Seguir jugando", style: .cancel))
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = pePad.menuView
+            popover.sourceRect = pePad.menuView.bounds
+        }
+        present(sheet, animated: true)
+    }
+
+    private func peChooseScale() {
+        let sheet = UIAlertController(title: "Imagen", message: "Cómo se agranda el juego en la pantalla.", preferredStyle: .actionSheet)
+        for option in [PEScale.pixelPerfect, .sharp, .smooth] {
+            let mark = option == peScale ? "✓ " : ""
+            sheet.addAction(UIAlertAction(title: mark + option.title, style: .default) { [weak self] _ in
+                guard let self = self else { return }
+                UserDefaults.standard.set(option.rawValue, forKey: "pe_scale_\(self.currentGameId)")
+                self.peApplyScale()
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = pePad.menuView
+            popover.sourceRect = pePad.menuView.bounds
+        }
+        present(sheet, animated: true)
+    }
+
+    /// The game ended by itself: back to the launcher.
+    func peCloseToLauncher() {
+        hasStartedGame = false
+        isUserInitiatedExit = true
+        GameViewController.currentActiveGameVC = nil
+        UIApplication.shared.isIdleTimerDisabled = false
+        let notify = {
+            NotificationCenter.default.post(name: NSNotification.Name("DecadeGameRunningStateChanged"), object: nil)
+        }
+        if presentingViewController != nil {
+            dismiss(animated: true, completion: notify)
+        } else {
+            notify()
+        }
+    }
 }

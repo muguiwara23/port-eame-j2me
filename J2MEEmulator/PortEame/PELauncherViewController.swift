@@ -261,6 +261,7 @@ final class PELauncherViewController: UIViewController, UICollectionViewDataSour
                                     appIcon: PEIcons.tile(for: game, size: 120),
                                     canvasWidth: size.0, canvasHeight: size.1,
                                     render3dScale: supersample ? 3 : 1, fpsLimit: PELibrary.fpsLimit(for: game))
+        vc.porteameMode = true // the Port/eame game screen
         GameViewController.currentActiveGameVC = vc
         vc.modalPresentationStyle = .fullScreen
         present(vc, animated: true)

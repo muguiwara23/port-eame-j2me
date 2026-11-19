@@ -585,6 +585,18 @@ s64 _garbage_collect(GcCollector *collector) {
     collector->obj_heap_size = mem_total - mem_free;
     spin_unlock(&collector->lock);
 
+    // Port/eame: how long each collection held the game (a long one is a
+    // visible hitch), in the app's log; quiet ones every 30 s at most.
+    {
+        static s64 pe_last_report = 0;
+        s64 pe_total = currentTimeMillis() - start;
+        if (pe_total >= 8 || currentTimeMillis() - pe_last_report > 30000) {
+            pe_last_report = currentTimeMillis();
+            fprintf(stderr, "[Port/eame] gc: %lld ms, %lld objects, %lld KB\n", (long long) pe_total,
+                    (long long) collector->obj_count, (long long) (collector->obj_heap_size / 1024));
+        }
+    }
+
 #if _JVM_DEBUG_LOG_LEVEL > 1
     s64 time_gc = currentTimeMillis() - time;
     jvm_printf("[INFO]gc obj: %lld->%lld   heap : %lld -> %lld  stop_world: %lld  gc:%lld\n", iter, collector->obj_count, mem_total, collector->obj_heap_size, time_stopWorld, time_gc);

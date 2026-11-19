@@ -75,6 +75,30 @@ public abstract class Canvas extends Displayable {
         return fpsLimit;
     }
 
+    // Port/eame: frame statistics in the app's log every 5 seconds: frames
+    // per second, and the average time a frame spends in the game's paint,
+    // in drawing the frame out, and waiting for the frame limit.
+    private static long peStart = 0, pePaint = 0, peFlush = 0, peWait = 0;
+    private static int peFrames = 0;
+
+    static void peFrame(long wait, long paint, long flush) {
+        long now = System.currentTimeMillis();
+        if (peStart == 0) peStart = now;
+        peFrames++;
+        peWait += wait;
+        pePaint += paint;
+        peFlush += flush;
+        long span = now - peStart;
+        if (span >= 5000) {
+            System.out.println("[Port/eame] fps " + (peFrames * 1000 / span)
+                    + " | per frame: paint " + (pePaint / peFrames) + " ms, draw out " + (peFlush / peFrames)
+                    + " ms, wait " + (peWait / peFrames) + " ms (limit " + fpsLimit + ")");
+            peStart = now;
+            peFrames = 0;
+            pePaint = peFlush = peWait = 0;
+        }
+    }
+
     private void limitFps() {
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
@@ -181,12 +205,14 @@ public abstract class Canvas extends Displayable {
             }
             return;
         }
+        long peT0 = System.currentTimeMillis();
         synchronized (paintLock) {
             if (nativeContext == 0) initContext();
             graphics.reset(0, 0, this.width, this.height);
             graphics.drawImage(image, 0, 0, Graphics.LEFT | Graphics.TOP);
             NativeBridge.flushToScreen(nativeContext);
         }
+        peFrame(0, 0, System.currentTimeMillis() - peT0);
     }
 
     // ExtendedImage (Siemens) — copy image to Canvas context at position and flush.
@@ -215,7 +241,9 @@ public abstract class Canvas extends Displayable {
      */
     public void doPaint() {
         if (!isShown()) return;
+        long peT0 = System.currentTimeMillis();
         limitFps();
+        long peT1 = System.currentTimeMillis(), peT2 = peT1;
         boolean inBg = false;
         try { inBg = NativeBridge.isBackground(); } catch (Throwable ignored) {}
         synchronized (paintLock) {
@@ -228,7 +256,9 @@ public abstract class Canvas extends Displayable {
                     graphics.reset(clipX, clipY, clipW, clipH);
                 }
                 paint(graphics);
+                peT2 = System.currentTimeMillis();
                 NativeBridge.flushToScreen(nativeContext);
+                peFrame(peT1 - peT0, peT2 - peT1, System.currentTimeMillis() - peT2);
             } catch (Throwable t) {
                 System.out.println("[Canvas] Warning: Exception in paint(): " + t);
             } finally {
