@@ -20,6 +20,7 @@ import AVFoundation
 import MediaPlayer
 import UserNotifications
 import CoreLocation
+import Network
 
 // ============================================================
 // MARK: - Decade Location Keep-Alive (Định Vị BTS 0% Hao Pin GPS)
@@ -55,7 +56,7 @@ final class DecadeLocationKeeper: NSObject, CLLocationManagerDelegate {
         manager.delegate = self
         // Độ chính xác 3km: Chỉ dựa vào trạm sóng di động BTS, TẮT HOÀN TOÀN chip GPS vệ tinh (0% hao pin GPS)
         manager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
-        manager.distanceFilter = 999999.0
+        manager.distanceFilter = 100.0
         manager.pausesLocationUpdatesAutomatically = false
         if #available(iOS 9.0, *) {
             manager.allowsBackgroundLocationUpdates = true
@@ -117,6 +118,114 @@ final class DecadeLocationKeeper: NSObject, CLLocationManagerDelegate {
     }
 }
 
+// ============================================================
+// MARK: - Decade Network Keep-Alive (Giữ Mạng 24/24 - Chống Ngủ Wi-Fi & 4G/5G)
+// ============================================================
+
+final class DecadeNetworkKeeper {
+    static let shared = DecadeNetworkKeeper()
+
+    private var heartbeatTimer: DispatchSourceTimer?
+    private var session: URLSession?
+    private var pathMonitor: NWPathMonitor?
+    private let monitorQueue = DispatchQueue(label: "com.decade.network.monitor")
+    private(set) var isRunning = false
+    private(set) var isNetworkConnected = true
+    private var lastProbeSuccessTime: TimeInterval = 0
+
+    // Các máy chủ kiểm tra kết nối toàn cầu phản hồi siêu tốc (HTTP 204 No Content / 0 byte tải về)
+    private let keepaliveEndpoints: [String] = [
+        "http://connectivitycheck.gstatic.com/generate_204",
+        "http://captive.apple.com/hotspot-detect.html",
+        "http://cp.cloudflare.com/generate_204"
+    ]
+    private var endpointIndex = 0
+
+    private init() {
+        setupSession()
+    }
+
+    private func setupSession() {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 8.0
+        config.timeoutIntervalForResource = 12.0
+        config.waitsForConnectivity = true
+        config.allowsCellularAccess = true
+        if #available(iOS 11.0, *) {
+            config.multipathServiceType = .handover
+        }
+        self.session = URLSession(configuration: config)
+    }
+
+    func start() {
+        guard !isRunning else { return }
+        isRunning = true
+        startPathMonitor()
+        startHeartbeat()
+        print("[DecadeNetworkKeeper] ĐÃ BẬT Giữ Mạng 24/24 — Chống ngủ Wi-Fi & Chống đứt 4G/5G CGNAT.")
+    }
+
+    func stop() {
+        isRunning = false
+        heartbeatTimer?.cancel()
+        heartbeatTimer = nil
+        pathMonitor?.cancel()
+        pathMonitor = nil
+        print("[DecadeNetworkKeeper] ĐÃ TẮT Giữ Mạng 24/24.")
+    }
+
+    private func startPathMonitor() {
+        guard pathMonitor == nil else { return }
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
+            let connected = (path.status == .satisfied)
+            self.isNetworkConnected = connected
+            let isCellular = path.isExpensive || path.usesInterfaceType(.cellular)
+            let isWiFi = path.usesInterfaceType(.wifi)
+            print("[DecadeNetworkKeeper] Đường truyền mạng: \(connected ? "ONLINE" : "OFFLINE") [WiFi=\(isWiFi), 4G/5G=\(isCellular)]")
+            if connected {
+                self.sendProbe()
+            }
+        }
+        monitor.start(queue: monitorQueue)
+        self.pathMonitor = monitor
+    }
+
+    private func startHeartbeat() {
+        guard heartbeatTimer == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        // Ping đều đặn mỗi 15 giây:
+        // 1. Ngăn iOS tắt / sleep chip Wi-Fi khi tắt màn hình khóa máy (Wi-Fi Power Save off)
+        // 2. Ngăn nhà mạng (Viettel, Vina, Mobi) ngắt cổng NAT (CGNAT) khi game đứng yên auto-farm
+        // 3. Duy trì luồng IP liên tục 24/24 không bao giờ bị đứt
+        timer.schedule(deadline: .now() + 2.0, repeating: 15.0)
+        timer.setEventHandler { [weak self] in
+            guard let self = self, self.isRunning else { return }
+            self.sendProbe()
+        }
+        timer.resume()
+        self.heartbeatTimer = timer
+    }
+
+    private func sendProbe() {
+        let endpoint = keepaliveEndpoints[endpointIndex % keepaliveEndpoints.count]
+        endpointIndex += 1
+
+        guard let url = URL(string: endpoint) else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "HEAD"
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+        session?.dataTask(with: request) { [weak self] _, response, _ in
+            guard let self = self else { return }
+            if let http = response as? HTTPURLResponse, (200...204).contains(http.statusCode) {
+                self.lastProbeSuccessTime = Date().timeIntervalSince1970
+            }
+        }.resume()
+    }
+}
+
 final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     static let shared = DecadeBackgroundKeeper()
 
@@ -132,7 +241,12 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     private func beginAppBackgroundTask() {
         guard bgTaskID == .invalid else { return }
         bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "DecadeKeepAliveTransition") { [weak self] in
-            self?.endAppBackgroundTask()
+            guard let self = self else { return }
+            print("[DecadeBackgroundKeeper] Background task expiring, renewing immediately...")
+            self.endAppBackgroundTask()
+            if self.isTreoActive {
+                self.beginAppBackgroundTask()
+            }
         }
     }
 
@@ -318,16 +432,22 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     func startKeepalive() {
         setupRemoteCommandsIfNeeded()
 
+        // 1. Luôn kích hoạt Audio Pipeline bất tử (AVAudioPlayer loop + AVAudioEngine 18Hz)
+        // để mediaserverd cấp assertion chạy nền 24/24 không bao giờ bị iOS đóng băng (freeze)
+        startAudioPipeline(forceRecreate: false)
+
+        // 2. Kích hoạt song song Định vị BTS nếu bật
         if DecadeLocationKeeper.shared.isLocationModeActive {
-            // Chế độ Định Vị BTS Tiết Kiệm Pin:
-            // TẮT HOÀN TOÀN âm thanh (không phát AVAudioPlayer / AVAudioEngine)
-            stopAudioPipeline()
             DecadeLocationKeeper.shared.start()
         } else {
-            // Chế độ Âm thanh:
             DecadeLocationKeeper.shared.stop()
-            startAudioPipeline(forceRecreate: false)
         }
+
+        // 3. Kích hoạt Giữ Mạng 24/24 (Anti-WiFi Sleep & Anti-CGNAT Drop)
+        DecadeNetworkKeeper.shared.start()
+
+        // 4. Kích hoạt Background Task duy trì chuyển cảnh
+        beginAppBackgroundTask()
 
         updateNowPlayingInfo()
         startWatchdog()
@@ -335,6 +455,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     func stopKeepalive() {
         DecadeLocationKeeper.shared.stop()
+        DecadeNetworkKeeper.shared.stop()
+        endAppBackgroundTask()
         stopAudioPipeline()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         clearLockScreenNotification()
@@ -357,12 +479,12 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
 
     @objc func onSceneWillResignActive() {
         if isTreoActive {
+            startAudioPipeline(forceRecreate: false)
             if DecadeLocationKeeper.shared.isLocationModeActive {
-                stopAudioPipeline()
                 DecadeLocationKeeper.shared.start()
-            } else {
-                startAudioPipeline(forceRecreate: false)
             }
+            DecadeNetworkKeeper.shared.start()
+            beginAppBackgroundTask()
             updateNowPlayingInfo()
         }
     }
@@ -654,10 +776,13 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             lastCardImageRenderTime = now
         }
 
+        let netStatus = DecadeNetworkKeeper.shared.isNetworkConnected ? "Mạng 24/24: OK" : "Mất mạng"
+        let albumTitle = "Treo 24/24 Bất Tử • \(netStatus) • \(timeString)"
+
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: "🎮 \(currentGameName)",
             MPMediaItemPropertyArtist: "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Tab: \(tabs)",
-            MPMediaItemPropertyAlbumTitle: DecadeLocationKeeper.shared.isLocationModeActive ? "Định vị BTS ngầm (0% pin)   •   Cập nhật \(timeString)" : "Đang chạy nền   •   Cập nhật \(timeString)",
+            MPMediaItemPropertyAlbumTitle: albumTitle,
             MPNowPlayingInfoPropertyIsLiveStream: true,
             MPNowPlayingInfoPropertyPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0
@@ -805,19 +930,30 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         timer.setEventHandler { [weak self] in
             guard let self = self, self.isTreoActive else { return }
 
+            // 1. Luôn bảo đảm Audio Pipeline (AVAudioPlayer loop) đang phát
+            if self.audioPlayer?.isPlaying != true {
+                print("[DecadeBackgroundKeeper] Watchdog: AudioPlayer not playing, resuming...")
+                self.startFallbackAudioPlayer()
+            }
+            if self.audioEngine?.isRunning != true {
+                _ = self.startRealtimeAudioEngine()
+            }
+
+            // 2. Bảo đảm Location Keeper đang chạy nếu được kích hoạt
             if DecadeLocationKeeper.shared.isLocationModeActive {
                 if !DecadeLocationKeeper.shared.isRunning {
                     DecadeLocationKeeper.shared.start()
                 }
-            } else {
-                // Giữ audio pipeline sống liên tục 24/7 trực tiếp trên hàng đợi nền nếu ở chế độ Audio
-                if self.audioPlayer?.isPlaying != true {
-                    print("[DecadeBackgroundKeeper] Watchdog: AudioPlayer not playing, resuming...")
-                    self.startFallbackAudioPlayer()
-                }
-                if self.audioEngine?.isRunning != true {
-                    _ = self.startRealtimeAudioEngine()
-                }
+            }
+
+            // 3. Bảo đảm Network Keeper đang giữ mạng 24/24
+            if !DecadeNetworkKeeper.shared.isRunning {
+                DecadeNetworkKeeper.shared.start()
+            }
+
+            // 4. Bảo đảm Background Task Transition luôn có hiệu lực
+            if self.bgTaskID == .invalid {
+                self.beginAppBackgroundTask()
             }
 
             DispatchQueue.main.async {

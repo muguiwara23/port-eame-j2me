@@ -37,16 +37,16 @@ void decade_network_optimize_socket(int fd) {
     setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (const void *)&keepalive, sizeof(keepalive));
 
 #if defined(__APPLE__) || defined(__MACH__)
-    // Probe after 60 seconds of idle (gentle, avoids mobile carrier throttling)
-    int keepidle = 60;
+    // Probe after 15 seconds of idle (chủ động giữ cổng NAT 4G/5G và không để Wi-Fi sleep 24/24)
+    int keepidle = 15;
     setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, (const void *)&keepidle, sizeof(keepidle));
 
-    // Repeat probe every 30 seconds if unacknowledged
-    int keepintvl = 30;
+    // Repeat probe every 10 seconds if unacknowledged
+    int keepintvl = 10;
     setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (const void *)&keepintvl, sizeof(keepintvl));
 
-    // Drop only after 20 unacknowledged probes (10+ minutes tolerance against carrier NAT jitter)
-    int keepcnt = 20;
+    // Drop only after 30 unacknowledged probes (chịu được biến động mạng tạm thời 5+ phút)
+    int keepcnt = 30;
     setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (const void *)&keepcnt, sizeof(keepcnt));
 #endif
 

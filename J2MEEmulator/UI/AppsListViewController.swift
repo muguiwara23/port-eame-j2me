@@ -347,12 +347,16 @@ class AppsListViewController: UIViewController,
 
     @objc private func tabTreo247Tapped() {
         let isBTS = DecadeLocationKeeper.shared.isLocationModeActive
+        let netRunning = DecadeNetworkKeeper.shared.isRunning
+        let netConnected = DecadeNetworkKeeper.shared.isNetworkConnected
+        let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
+
         let alert = UIAlertController(
-            title: "Treo Game 24/7",
-            message: "• Chế độ: \(isBTS ? "Định Vị BTS 3km (0% Hao Pin, Không Cần Audio)" : "Audio Player Nền Tiêu Chuẩn")\n• Khắc phục: Chặn hoàn toàn hiện tượng đơ/văng màn hình khi tắt máy\n• Pin hiện tại: \(Int(UIDevice.current.batteryLevel * 100))%",
+            title: "Treo Game 24/24 Bất Tử",
+            message: "• Giữ Mạng 24/24: \(netRunning ? (netConnected ? "ĐANG GIỮ (Kết nối tốt)" : "Đang thử lại...") : "TẮT")\n  (Chống Wi-Fi ngủ khi tắt màn hình, chống nhà mạng 4G/5G ngắt kết nối)\n• Giữ Tiến Trình: Audio Bất Tử + \(isBTS ? "Định Vị BTS (0% Pin)" : "Tắt BTS")\n• RAM hiện tại: \(Int(ramMB)) MB",
             preferredStyle: .actionSheet
         )
-        alert.addAction(UIAlertAction(title: isBTS ? "Chuyển sang Chế độ Audio Nền" : "Bật Chế độ Định Vị BTS (0% Pin)", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: isBTS ? "Tắt chế độ Định Vị BTS" : "Bật kèm Định Vị BTS (0% Pin)", style: .default) { _ in
             DecadeLocationKeeper.shared.isLocationModeActive.toggle()
         })
         alert.addAction(UIAlertAction(title: "Dọn dẹp RAM ngay", style: .default) { _ in
