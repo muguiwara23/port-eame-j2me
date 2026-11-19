@@ -2,7 +2,7 @@
 //  SpringboardCell.swift
 //  J2MEEmulator
 //
-//  Thiết kế thẻ game chuẩn 1:1 theo giao diện "Chơi Game Tuổi Thơ"
+//  Thiết kế thẻ game chuẩn 1:1 theo giao diện "Port/eame Java"
 //
 
 import UIKit
@@ -208,12 +208,12 @@ class SpringboardCell: UICollectionViewCell {
             statusPill.backgroundColor = UIColor(red: 0.05, green: 0.24, blue: 0.14, alpha: 1.0)
             statusDot.backgroundColor = UIColor(red: 0.20, green: 0.83, blue: 0.45, alpha: 1.0)
             statusLabel.textColor = UIColor(red: 0.29, green: 0.87, blue: 0.52, alpha: 1.0)
-            statusLabel.text = "Đang Chạy"
+            statusLabel.text = "Abiertos"
         } else {
             statusPill.backgroundColor = UIColor(white: 1.0, alpha: 0.08)
             statusDot.backgroundColor = UIColor(red: 0.55, green: 0.58, blue: 0.65, alpha: 1.0)
             statusLabel.textColor = UIColor(red: 0.60, green: 0.64, blue: 0.70, alpha: 1.0)
-            statusLabel.text = "Đã Dừng"
+            statusLabel.text = "Detenido"
         }
     }
 }

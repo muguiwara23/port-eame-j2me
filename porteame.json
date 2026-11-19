@@ -1,0 +1,19 @@
+{
+  "porteame": 1,
+  "app": {
+    "name": "JarBox",
+    "display_name": "Port/eame Java",
+    "executable": "JarBox",
+    "bundle_id": "org.porteame.java",
+    "version": "0.1"
+  },
+  "ipa": "PortEameJava-{version}-ios-arm64-unsigned.ipa",
+  "licenses": {
+    "Port-eame-Java-LICENSE.txt": "LICENSE",
+    "Port-eame-Java-NOTICE.md": "ios/NOTICE.md",
+    "miniJVM-LICENSE.txt": "ios/licenses/miniJVM-LICENSE.txt",
+    "Port-eame-kit.txt": "port-eame-kit/LICENSE"
+  },
+  "forbidden": [".jar", ".jad"],
+  "allow": ["j2me_api.jar", "minijvm_rt.jar"]
+}

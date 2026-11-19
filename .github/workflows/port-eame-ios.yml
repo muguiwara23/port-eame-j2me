@@ -1,0 +1,43 @@
+name: Port/eame iOS
+
+# Port/eame: the unsigned iOS app (Port/eame Java), built by the kit (port-eame-kit,
+# a git submodule). Run by hand only (Actions > Port/eame iOS > Run workflow),
+# so one build at a time has the macOS runner. No ROM, disc, save or signing
+# identity is used.
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: Mac to build on (Intel when Apple-silicon Macs are busy; both build the arm64 iOS app)
+        type: choice
+        default: macos-26-intel
+        options:
+          - macos-26-intel
+          - macos-26
+          - macos-15-intel
+          - macos-15
+      icon:
+        description: "Put Arturo's icon in the app"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: port-eame-ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    name: iOS build and unsigned IPA (${{ inputs.runner }})
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: ./port-eame-kit/actions/ios
+        with:
+          icon: ${{ inputs.icon }}
+          icon-key: ${{ secrets.PORTEAME_ICON_KEY }}

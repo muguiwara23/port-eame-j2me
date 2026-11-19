@@ -3,11 +3,11 @@
 //  J2MEEmulator
 //
 //  Runs a single J2ME MIDlet with 1:1 authentic KamenRider Decade UI:
-//  - Top Toolbar: Title ("x27" / "Tài khoản"), [++], [+], [⌨], [📷], [⋮]
+//  - Top Toolbar: Title ("x27" / "Cuenta"), [++], [+], [⌨], [📷], [⋮]
 //  - Tab Strip: Dark navy strip (#1C2534) with active blue tab [ 1 ] (#1E69D2)
 //  - Full-screen high-resolution Canvas between tab strip and keypad
 //  - Authentic KamenRider Decade Virtual Keypad (pure directional keycodes, no accidental numbers!)
-//  - "Bàn phím ảo" menu: Công tắc cấu trúc phím, Ẩn/Hiện phím, Kích thước, Độ mờ
+//  - "Teclado en pantalla" menu: Công tắc cấu trúc phím, Ẩn/Hiện phím, Kích thước, Độ mờ
 //  - In-game TextBox with "✓" (V) Done button to dismiss keyboard
 //  - AngelChip Menu with red softkeys (MENU, THOÁT)
 //  - Double-tap on canvas removed: Chat input ONLY opens when tapping [⌨] button
@@ -219,7 +219,7 @@ class GameViewController: UIViewController {
         let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
         let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
         if savedW == 0 || savedH == 0 {
-            return false // "Tự Động": Kín màn hình mặc định
+            return false // "Automático": Kín màn hình mặc định
         }
         if let val = UserDefaults.standard.object(forKey: "aspect_\(currentGameId)") as? Bool {
             return val
@@ -537,7 +537,7 @@ class GameViewController: UIViewController {
         view.addSubview(keypad)
 
         // Floating unhide keypad button (visible when keypad is hidden)
-        floatingShowKeypadBtn.setTitle("⌨ Bật phím", for: .normal)
+        floatingShowKeypadBtn.setTitle("⌨ Teclado", for: .normal)
         floatingShowKeypadBtn.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
         floatingShowKeypadBtn.setTitleColor(.white, for: .normal)
         floatingShowKeypadBtn.backgroundColor = UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 0.90)
@@ -657,22 +657,22 @@ class GameViewController: UIViewController {
         let appName = (slot < tabSessions.count) ? tabSessions[slot].appName : "Game"
 
         let sheet = UIAlertController(
-            title: "Tùy chọn Tab \(slot + 1): \(appName)",
+            title: "Pestaña \(slot + 1): \(appName)",
             message: nil,
             preferredStyle: .actionSheet
         )
 
-        sheet.addAction(UIAlertAction(title: "🌐 Gắn Proxy cho Tab \(slot + 1)", style: .default) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: "🌐 Proxy de la pestaña \(slot + 1)", style: .default) { [weak self] _ in
             self?.showProxyPickerForSlot(slot)
         })
 
         if slot > 0 {
-            sheet.addAction(UIAlertAction(title: "❌ Đóng Tab \(slot + 1)", style: .destructive) { [weak self] _ in
+            sheet.addAction(UIAlertAction(title: "❌ Cerrar pestaña \(slot + 1)", style: .destructive) { [weak self] _ in
                 self?.closeTab(at: slot)
             })
         }
 
-        sheet.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        sheet.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         if let popover = sheet.popoverPresentationController {
             popover.sourceView = btn
             popover.sourceRect = btn.bounds
@@ -707,7 +707,7 @@ class GameViewController: UIViewController {
 
         let newActive = min(activeTabIndex, tabButtons.count - 1)
         selectTab(at: newActive)
-        showToast(message: "Đã đóng Tab \(index + 1)")
+        showToast(message: "Pestaña \(index + 1) cerrada")
     }
 
     private func selectTab(at index: Int) {
@@ -794,13 +794,13 @@ class GameViewController: UIViewController {
             }
         }
 
-        showToast(message: "Chuyển sang Tab \(index + 1): \(session.appName)")
+        showToast(message: "Pestaña \(index + 1): \(session.appName)")
     }
 
     private func addNewTab(jarPath: String, appName: String, icon: UIImage) {
         let newSlot = tabButtons.count
         guard newSlot < 32 else {
-            showToast(message: "Đã đạt tối đa 32 tab")
+            showToast(message: "Ya hay 32 pestañas, el máximo")
             return
         }
 
@@ -864,26 +864,26 @@ class GameViewController: UIViewController {
         }
 
         let folderName = URL(fileURLWithPath: saveRoot).lastPathComponent
-        showToast(message: "Đã thêm Tab \(newSlot + 1): \(appName)\n(Thư mục data: \(folderName))")
+        showToast(message: "Pestaña \(newSlot + 1) abierta: \(appName)\n(Carpeta de datos: \(folderName))")
     }
 
     @objc private func addTabTapped() {
         let maxAvailable = 100 - tabButtons.count
         if maxAvailable <= 0 {
-            showToast(message: "Đã đạt tối đa 100 tab")
+            showToast(message: "Ya hay 100 pestañas, el máximo")
             return
         }
 
         let installedApps = AppsListViewController.loadInstalledApps()
 
         let alert = UIAlertController(
-            title: "Thêm Tab Mới",
-            message: "Chọn game để chạy trên Tab \(tabButtons.count + 1):",
+            title: "Nueva pestaña",
+            message: "Elige el juego de la pestaña \(tabButtons.count + 1):",
             preferredStyle: .actionSheet
         )
 
         // 1. Current game option (Cloning / duplicate)
-        alert.addAction(UIAlertAction(title: "⧉ Nhân bản game hiện tại (\(appName))", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "⧉ Otra vez este juego (\(appName))", style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.addNewTab(jarPath: self.jarPath, appName: self.appName, icon: self.appIcon)
         })
@@ -898,7 +898,7 @@ class GameViewController: UIViewController {
             }
         }
 
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
 
         if let popover = alert.popoverPresentationController {
             popover.sourceView = addTabBtn
@@ -910,25 +910,25 @@ class GameViewController: UIViewController {
     @objc private func multiTabTapped() {
         let maxAvailable = 100 - tabButtons.count
         if maxAvailable <= 0 {
-            showToast(message: "Đã đạt tối đa 100 tab")
+            showToast(message: "Ya hay 100 pestañas, el máximo")
             return
         }
 
         let installedApps = AppsListViewController.loadInstalledApps()
 
         let alert = UIAlertController(
-            title: "Mở nhiều tab (++)",
-            message: "Nhập số lượng tab và chọn game cần mở:",
+            title: "Abrir varias pestañas (++)",
+            message: "Cuántas pestañas y con qué juego:",
             preferredStyle: .alert
         )
         alert.addTextField { tf in
             tf.text = "5"
             tf.keyboardType = .numberPad
-            tf.placeholder = "Số tab (tối đa \(maxAvailable))"
+            tf.placeholder = "Pestañas (máximo \(maxAvailable))"
         }
 
         // Action for current game
-        alert.addAction(UIAlertAction(title: "⧉ Mở cho: \(appName)", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: "⧉ Abrir: \(appName)", style: .default) { [weak self, weak alert] _ in
             guard let self = self else { return }
             let count = Int(alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0
             let safeCount = max(1, min(count, maxAvailable))
@@ -951,7 +951,7 @@ class GameViewController: UIViewController {
             }
         }
 
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -993,7 +993,7 @@ class GameViewController: UIViewController {
         }
         popup.onArrangeKeyboard = { [weak self] in
             self?.decadeKeypadView?.toggleEditMode()
-            self?.showToast(message: "Kéo thả để sắp xếp các phím ảo")
+            self?.showToast(message: "Arrastra las teclas para acomodarlas")
         }
         popup.onToggleKeyboardVisibility = { [weak self] in
             self?.toggleKeypadVisibility()
@@ -1009,32 +1009,32 @@ class GameViewController: UIViewController {
     }
 
     private func promptChangeKeyboardLayout() {
-        let alert = UIAlertController(title: "Cài Đặt Bàn Phím", message: "Chọn kiểu bàn phím ảo hiển thị:", preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "⭐️ Bản Tuổi Thơ (Chuẩn Mới)", style: .default) { [weak self] _ in
+        let alert = UIAlertController(title: "Teclado en pantalla", message: "Elige el teclado en pantalla:", preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "⭐️ Clásico", style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.decadeKeypadView?.currentLayout = .tuoitho
             UserDefaults.standard.set(0, forKey: "keypad_layout_\(self.currentGameId)")
-            self.showToast(message: "Đã chọn Bàn phím Tuổi Thơ")
+            self.showToast(message: "Teclado clásico")
         })
-        alert.addAction(UIAlertAction(title: "🎯 Chỉ Mũi Tên Điều Hướng", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🎯 Solo flechas", style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.decadeKeypadView?.currentLayout = .arrows
             UserDefaults.standard.set(1, forKey: "keypad_layout_\(self.currentGameId)")
-            self.showToast(message: "Đã chọn Bàn phím Mũi Tên")
+            self.showToast(message: "Teclado de flechas")
         })
-        alert.addAction(UIAlertAction(title: "🔢 Bàn Phím Số (Numpad)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🔢 Teclado numérico", style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.decadeKeypadView?.currentLayout = .numpad
             UserDefaults.standard.set(2, forKey: "keypad_layout_\(self.currentGameId)")
-            self.showToast(message: "Đã chọn Bàn phím Số")
+            self.showToast(message: "Teclado numérico")
         })
-        alert.addAction(UIAlertAction(title: "🔄 Kết Hợp Đầy Đủ", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🔄 Completo (flechas y números)", style: .default) { [weak self] _ in
             guard let self = self else { return }
             self.decadeKeypadView?.currentLayout = .combined
             UserDefaults.standard.set(3, forKey: "keypad_layout_\(self.currentGameId)")
-            self.showToast(message: "Đã chọn Bàn phím Kết Hợp")
+            self.showToast(message: "Teclado completo")
         })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = menuBtn
             popover.sourceRect = menuBtn.bounds
@@ -1043,7 +1043,7 @@ class GameViewController: UIViewController {
     }
 
     private func restartGameSession() {
-        showToast(message: "Đang khởi động lại game...")
+        showToast(message: "Reiniciando el juego...")
         let savedW = UserDefaults.standard.object(forKey: "resW_\(currentGameId)") as? Int ?? 0
         let savedH = UserDefaults.standard.object(forKey: "resH_\(currentGameId)") as? Int ?? 0
         let targetSize = (savedW > 0 && savedH > 0) ? (savedW, savedH) : calculateAutoCanvasSize()
@@ -1095,15 +1095,15 @@ class GameViewController: UIViewController {
 
     @objc private func triggerManualRamCleanup() {
         softKeyHaptic.impactOccurred(intensity: 0.7)
-        showToast(message: "Đang dọn dẹp RAM...")
+        showToast(message: "Liberando RAM...")
         DecadeBackgroundKeeper.shared.performRamCleanup { [weak self] beforeMB, afterMB in
             guard let self = self else { return }
             self.updateSystemStatsLabel()
             let saved = max(0.0, beforeMB - afterMB)
             if saved >= 0.5 {
-                self.showToast(message: String(format: "Đã dọn RAM: %.0f MB → %.0f MB (giảm %.1f MB)", beforeMB, afterMB, saved))
+                self.showToast(message: String(format: "RAM: %.0f MB → %.0f MB (%.1f MB menos)", beforeMB, afterMB, saved))
             } else {
-                self.showToast(message: String(format: "RAM đang tối ưu: %.0f MB", afterMB))
+                self.showToast(message: String(format: "RAM en orden: %.0f MB", afterMB))
             }
         }
     }
@@ -1118,7 +1118,7 @@ class GameViewController: UIViewController {
             vendor: nil,
             icon: appIcon,
             fileSizeString: "0 MB",
-            resolutionString: "Tự Động"
+            resolutionString: "Automático"
         )
         let configVC = DecadeConfigViewController(app: appInfo, onStart: nil)
         let nav = UINavigationController(rootViewController: configVC)
@@ -1195,7 +1195,7 @@ class GameViewController: UIViewController {
             return
         }
 
-        showToast(message: "✅ Đã lưu và cập nhật thiết lập ngay lập tức!")
+        showToast(message: "✅ Ajustes guardados")
     }
 
     private func isCurrentOrientationLandscape() -> Bool {
@@ -1261,7 +1261,7 @@ class GameViewController: UIViewController {
         let tap = UITapGestureRecognizer(target: self, action: #selector(dismissOledBlackOverlay))
         v.addGestureRecognizer(tap)
         let lbl = UILabel()
-        lbl.text = "🌙 Đang treo tắt màn (Tiết kiệm pin)\nChạm vào màn hình để bật lại sáng"
+        lbl.text = "🌙 Pantalla negra (ahorra batería)\nToca la pantalla para volver"
         lbl.numberOfLines = 2
         lbl.textAlignment = .center
         lbl.textColor = UIColor(white: 0.35, alpha: 1.0)
@@ -1337,15 +1337,15 @@ class GameViewController: UIViewController {
     }
 
     private func promptSwitchTab() {
-        let alert = UIAlertController(title: "Chọn Tab Midlet", message: "Đang mở \(tabButtons.count) tab:", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Elegir pestaña", message: "\(tabButtons.count) pestañas abiertas:", preferredStyle: .actionSheet)
         for i in 0..<tabButtons.count {
             let isCurrent = (i == activeTabIndex)
-            let tabTitle = (isCurrent ? "⦿ Tab \(i + 1) (Hiện tại)" : "○ Tab \(i + 1)")
+            let tabTitle = (isCurrent ? "⦿ Pestaña \(i + 1) (actual)" : "○ Tab \(i + 1)")
             alert.addAction(UIAlertAction(title: tabTitle, style: .default) { [weak self] _ in
                 self?.selectTab(at: i)
             })
         }
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = DecadeFloatingBubble.shared
             popover.sourceRect = DecadeFloatingBubble.shared.bounds
@@ -1362,27 +1362,27 @@ class GameViewController: UIViewController {
             DecadeFloatingBubble.shared.show(in: view.window)
             view.window?.bringSubviewToFront(DecadeFloatingBubble.shared)
             DecadePiPManager.shared.startPiP()
-            showToast(message: "Đã bật treo & Cửa sổ nổi ngoài màn hình")
+            showToast(message: "Ventana flotante activada")
         } else {
             dismissOledBlackOverlay()
             DecadeFloatingBubble.shared.hide()
             DecadeMiniWindow.shared.hide()
             DecadePiPManager.shared.stopPiP()
-            showToast(message: "Đã tắt treo tắt màn")
+            showToast(message: "Segundo plano detenido")
         }
     }
 
     private func promptAssignProxyForCurrentTab() {
         let alert = UIAlertController(
-            title: "Gán proxy — Tab \(activeTabIndex + 1)",
-            message: "Chọn proxy áp dụng riêng cho tab này:",
+            title: "Proxy — pestaña \(activeTabIndex + 1)",
+            message: "Elige el proxy de esta pestaña:",
             preferredStyle: .actionSheet
         )
 
-        alert.addAction(UIAlertAction(title: "⦿ Mặc định (Không dùng proxy)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "⦿ Predeterminado (sin proxy)", style: .default) { [weak self] _ in
             guard let self = self else { return }
             UserDefaults.standard.removeObject(forKey: "decade_tab_proxy_\(self.appName)_\(self.activeTabIndex)")
-            self.showToast(message: "Tab \(self.activeTabIndex + 1): Sử dụng mạng mặc định")
+            self.showToast(message: "Pestaña \(self.activeTabIndex + 1): conexión directa")
         })
 
         // Check configured global proxy
@@ -1392,10 +1392,10 @@ class GameViewController: UIViewController {
 
         if !host.isEmpty && !port.isEmpty {
             let proxyTitle = "\(proto) \(host):\(port)"
-            alert.addAction(UIAlertAction(title: "⦾ Proxy chính: \(proxyTitle)", style: .default) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "⦾ Proxy principal: \(proxyTitle)", style: .default) { [weak self] _ in
                 guard let self = self else { return }
                 UserDefaults.standard.set(proxyTitle, forKey: "decade_tab_proxy_\(self.appName)_\(self.activeTabIndex)")
-                self.showToast(message: "Đã gán \(proxyTitle) cho Tab \(self.activeTabIndex + 1)")
+                self.showToast(message: "\(proxyTitle) asignado a la pestaña \(self.activeTabIndex + 1)")
             })
         }
 
@@ -1409,15 +1409,15 @@ class GameViewController: UIViewController {
             alert.addAction(UIAlertAction(title: "⦾ \(p)", style: .default) { [weak self] _ in
                 guard let self = self else { return }
                 UserDefaults.standard.set(p, forKey: "decade_tab_proxy_\(self.appName)_\(self.activeTabIndex)")
-                self.showToast(message: "Đã gán \(p) cho Tab \(self.activeTabIndex + 1)")
+                self.showToast(message: "\(p) asignado a la pestaña \(self.activeTabIndex + 1)")
             })
         }
 
-        alert.addAction(UIAlertAction(title: "⚙ Quản lý & Thêm proxy mới...", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "⚙ Proxies...", style: .default) { [weak self] _ in
             self?.openProxyManager()
         })
 
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
 
         if let popover = alert.popoverPresentationController {
             popover.sourceView = menuBtn
@@ -1458,7 +1458,7 @@ class GameViewController: UIViewController {
 
     private func buildVirtualKeyboardMenu() -> UIMenu {
         let toggleKeypadItem = UIAction(
-            title: isKeypadHidden ? "Bàn phím ảo (Đang tắt)" : "Bàn phím ảo (Đang bật)",
+            title: isKeypadHidden ? "Teclado en pantalla (oculto)" : "Teclado en pantalla (visible)",
             image: UIImage(systemName: isKeypadHidden ? "keyboard" : "keyboard.fill"),
             state: isKeypadHidden ? .off : .on
         ) { [weak self] _ in
@@ -1466,7 +1466,7 @@ class GameViewController: UIViewController {
         }
 
         let editLayoutItem = UIAction(
-            title: "Chế độ chỉnh sửa cấu trúc phím",
+            title: "Mover teclas",
             image: UIImage(systemName: "arrow.up.and.down.and.arrow.left.and.right")
         ) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
@@ -1476,11 +1476,11 @@ class GameViewController: UIViewController {
             }
             keypad.isEditLayoutMode = true
             keypad.isResizeLayoutMode = false
-            self.showToast(message: "Chế độ chỉnh sửa: Kéo thả các phím tự do")
+            self.showToast(message: "Arrastra las teclas adonde quieras")
         }
 
         let scaleLayoutItem = UIAction(
-            title: "Chế độ thay đổi kích cỡ cấu trúc phím",
+            title: "Cambiar tamaño de teclas",
             image: UIImage(systemName: "arrow.up.left.and.arrow.down.right")
         ) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
@@ -1490,47 +1490,47 @@ class GameViewController: UIViewController {
             }
             keypad.isResizeLayoutMode = true
             keypad.isEditLayoutMode = false
-            self.showToast(message: "Chế độ thay đổi kích cỡ: Dùng 2 ngón tay thu phóng phím")
+            self.showToast(message: "Pellizca con dos dedos para cambiar el tamaño")
         }
 
         let finishEditItem = UIAction(
-            title: "Hoàn thành chế độ chỉnh sửa",
+            title: "Terminar edición",
             image: UIImage(systemName: "checkmark.circle.fill")
         ) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
             keypad.finishEditingLayout()
-            self.showToast(message: "Đã hoàn tất chế độ chỉnh sửa")
+            self.showToast(message: "Edición terminada")
         }
 
         let switchLayoutItem = UIAction(
-            title: "Công tắc cấu trúc phím",
+            title: "Tipo de teclado",
             image: UIImage(systemName: "square.grid.3x3")
         ) { [weak self] _ in
             self?.showLayoutSwitchDialog()
         }
 
         let hideButtonsItem = UIAction(
-            title: "Ẩn nút",
+            title: "Ocultar teclas",
             image: UIImage(systemName: "eye.slash")
         ) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
             let gid = self.appName.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "_", options: .regularExpression)
             let dialog = DecadeHideButtonsDialog(gameId: gid, currentHiddenKeys: keypad.hiddenKeys) { [weak self] newHiddenKeys in
                 keypad.hiddenKeys = newHiddenKeys
-                self?.showToast(message: "Đã cập nhật hiển thị nút")
+                self?.showToast(message: "Teclas actualizadas")
             }
             self.present(dialog, animated: true)
         }
 
         let textInputItem = UIAction(
-            title: "Nhập văn bản (IME)",
+            title: "Escribir texto",
             image: UIImage(systemName: "character.cursor.ibeam")
         ) { [weak self] _ in
             self?.promptTextInput()
         }
 
         return UIMenu(
-            title: "Bàn phím ảo",
+            title: "Teclado en pantalla",
             children: [
                 toggleKeypadItem,
                 editLayoutItem,
@@ -1544,16 +1544,16 @@ class GameViewController: UIViewController {
     }
 
     private func showVirtualKeyboardMenu() {
-        let alert = UIAlertController(title: "Bàn phím ảo", message: nil, preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Teclado en pantalla", message: nil, preferredStyle: .actionSheet)
 
         // 1. Bàn phím ảo
-        let hideTitle = isKeypadHidden ? "Bàn phím ảo (Đang tắt)" : "Bàn phím ảo (Đang bật)"
+        let hideTitle = isKeypadHidden ? "Teclado en pantalla (oculto)" : "Teclado en pantalla (visible)"
         alert.addAction(UIAlertAction(title: hideTitle, style: .default) { [weak self] _ in
             self?.toggleKeypadVisibility()
         })
 
         // 2. Chế độ chỉnh sửa cấu trúc phím
-        alert.addAction(UIAlertAction(title: "Chế độ chỉnh sửa cấu trúc phím", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Mover teclas", style: .default) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
             if self.isKeypadHidden {
                 self.isKeypadHidden = false
@@ -1561,11 +1561,11 @@ class GameViewController: UIViewController {
             }
             keypad.isEditLayoutMode = true
             keypad.isResizeLayoutMode = false
-            self.showToast(message: "Chế độ chỉnh sửa: Kéo thả các phím tự do")
+            self.showToast(message: "Arrastra las teclas adonde quieras")
         })
 
         // 3. Chế độ thay đổi kích cỡ cấu trúc phím
-        alert.addAction(UIAlertAction(title: "Chế độ thay đổi kích cỡ cấu trúc phím", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Cambiar tamaño de teclas", style: .default) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
             if self.isKeypadHidden {
                 self.isKeypadHidden = false
@@ -1573,38 +1573,38 @@ class GameViewController: UIViewController {
             }
             keypad.isResizeLayoutMode = true
             keypad.isEditLayoutMode = false
-            self.showToast(message: "Chế độ thay đổi kích cỡ: Dùng 2 ngón tay thu phóng phím")
+            self.showToast(message: "Pellizca con dos dedos para cambiar el tamaño")
         })
 
         // 4. Hoàn thành chế độ chỉnh sửa
-        alert.addAction(UIAlertAction(title: "Hoàn thành chế độ chỉnh sửa", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Terminar edición", style: .default) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
             keypad.finishEditingLayout()
-            self.showToast(message: "Đã hoàn tất chế độ chỉnh sửa")
+            self.showToast(message: "Edición terminada")
         })
 
         // 5. Công tắc cấu trúc phím
-        alert.addAction(UIAlertAction(title: "Công tắc cấu trúc phím", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Tipo de teclado", style: .default) { [weak self] _ in
             self?.showLayoutSwitchDialog()
         })
 
         // 6. Ẩn nút
-        alert.addAction(UIAlertAction(title: "Ẩn nút", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Ocultar teclas", style: .default) { [weak self] _ in
             guard let self = self, let keypad = self.decadeKeypadView else { return }
             let gid = self.appName.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "_", options: .regularExpression)
             let dialog = DecadeHideButtonsDialog(gameId: gid, currentHiddenKeys: keypad.hiddenKeys) { [weak self] newHiddenKeys in
                 keypad.hiddenKeys = newHiddenKeys
-                self?.showToast(message: "Đã cập nhật hiển thị nút")
+                self?.showToast(message: "Teclas actualizadas")
             }
             self.present(dialog, animated: true)
         })
 
         // 7. Nhập văn bản (IME)
-        alert.addAction(UIAlertAction(title: "Nhập văn bản (IME)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Escribir texto", style: .default) { [weak self] _ in
             self?.promptTextInput()
         })
 
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
 
         if let popover = alert.popoverPresentationController {
             popover.sourceView = keyboardBtn
@@ -1617,7 +1617,7 @@ class GameViewController: UIViewController {
     @objc private func toggleKeypadVisibility() {
         isKeypadHidden.toggle()
         updateKeypadVisibility()
-        showToast(message: isKeypadHidden ? "Đã ẩn bàn phím ảo" : "Đã hiện bàn phím ảo")
+        showToast(message: isKeypadHidden ? "Teclado oculto" : "Teclado visible")
     }
 
     private func updateKeypadVisibility() {
@@ -1645,94 +1645,94 @@ class GameViewController: UIViewController {
 
     // Công tắc cấu trúc phím
     private func showLayoutSwitchDialog() {
-        let alert = UIAlertController(title: "Công tắc cấu trúc phím", message: "Chọn kiểu bàn phím mong muốn:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Tipo de teclado", message: "Elige el teclado:", preferredStyle: .alert)
 
-        alert.addAction(UIAlertAction(title: "1. Decade Mũi tên (Mặc định - Điều hướng 8 chiều)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "1. Flechas (predeterminado, 8 direcciones)", style: .default) { [weak self] _ in
             self?.decadeKeypadView?.currentLayout = .arrows
-            self?.showToast(message: "Đã chuyển sang: Bố cục Mũi tên Decade")
+            self?.showToast(message: "Ahora: flechas")
         })
 
-        alert.addAction(UIAlertAction(title: "2. Bàn phím số (Numpad 0-9, *, #)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "2. Teclado numérico (0-9, *, #)", style: .default) { [weak self] _ in
             self?.decadeKeypadView?.currentLayout = .numpad
-            self?.showToast(message: "Đã chuyển sang: Bàn phím số (0-9)")
+            self?.showToast(message: "Ahora: teclado numérico")
         })
 
-        alert.addAction(UIAlertAction(title: "3. Kết hợp (Mũi tên & Phím số)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "3. Completo (flechas y números)", style: .default) { [weak self] _ in
             self?.decadeKeypadView?.currentLayout = .combined
-            self?.showToast(message: "Đã chuyển sang: Kết hợp Mũi tên & Số")
+            self?.showToast(message: "Ahora: flechas y números")
         })
 
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
     // Tuỳ chỉnh kích thước bàn phím
     private func showKeypadSizeDialog() {
-        let alert = UIAlertController(title: "Tuỳ chỉnh kích thước bàn phím", message: "Chọn chiều cao phù hợp với tay:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Tamaño del teclado", message: "Elige la altura que te acomode:", preferredStyle: .alert)
 
-        alert.addAction(UIAlertAction(title: "Nhỏ gọn (210pt)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Pequeño (210 pt)", style: .default) { [weak self] _ in
             self?.setKeypadHeight(210)
-            self?.showToast(message: "Kích thước: Nhỏ gọn")
+            self?.showToast(message: "Tamaño: pequeño")
         })
-        alert.addAction(UIAlertAction(title: "Vừa phải (245pt - Mặc định)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Mediano (245 pt, predeterminado)", style: .default) { [weak self] _ in
             self?.setKeypadHeight(245)
-            self?.showToast(message: "Kích thước: Vừa phải")
+            self?.showToast(message: "Tamaño: mediano")
         })
-        alert.addAction(UIAlertAction(title: "Lớn (290pt)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Grande (290 pt)", style: .default) { [weak self] _ in
             self?.setKeypadHeight(290)
-            self?.showToast(message: "Kích thước: Lớn")
+            self?.showToast(message: "Tamaño: grande")
         })
-        alert.addAction(UIAlertAction(title: "Rất lớn (330pt)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Muy grande (330 pt)", style: .default) { [weak self] _ in
             self?.setKeypadHeight(330)
-            self?.showToast(message: "Kích thước: Rất lớn")
+            self?.showToast(message: "Tamaño: muy grande")
         })
 
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
     // Độ mờ / trong suốt
     private func showKeypadOpacityDialog() {
-        let alert = UIAlertController(title: "Độ mờ bàn phím ảo", message: "Chọn mức độ trong suốt của phím:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Transparencia del teclado", message: "Elige cuánto se transparentan las teclas:", preferredStyle: .alert)
 
-        alert.addAction(UIAlertAction(title: "Trong suốt cao (40%)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Muy transparente (40 %)", style: .default) { [weak self] _ in
             self?.decadeKeypadView?.keypadAlphaValue = 0.40
-            self?.showToast(message: "Đã chỉnh độ mờ: 40%")
+            self?.showToast(message: "Opacidad: 40 %")
         })
-        alert.addAction(UIAlertAction(title: "Vừa phải (70% - Mặc định)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Media (70 %, predeterminado)", style: .default) { [weak self] _ in
             self?.decadeKeypadView?.keypadAlphaValue = 0.70
-            self?.showToast(message: "Đã chỉnh độ mờ: 70%")
+            self?.showToast(message: "Opacidad: 70 %")
         })
-        alert.addAction(UIAlertAction(title: "Đậm nét (100%)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Sólido (100 %)", style: .default) { [weak self] _ in
             self?.decadeKeypadView?.keypadAlphaValue = 1.00
-            self?.showToast(message: "Đã chỉnh độ mờ: 100%")
+            self?.showToast(message: "Opacidad: 100 %")
         })
 
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
     // Ẩn / Hiện từng phím
     private func showIndividualKeysToggleDialog() {
         guard let keypad = decadeKeypadView else { return }
-        let alert = UIAlertController(title: "Ẩn / Hiện từng phím", message: "Bật hoặc tắt các nhóm phím theo nhu cầu:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Mostrar u ocultar teclas", message: "Activa o quita grupos de teclas:", preferredStyle: .alert)
 
-        let diagTitle = (keypad.showDiagonalKeys ? "✓ " : "   ") + "Phím chéo (↖, ↗, ↙, ↘)"
+        let diagTitle = (keypad.showDiagonalKeys ? "✓ " : "   ") + "Diagonales (↖, ↗, ↙, ↘)"
         alert.addAction(UIAlertAction(title: diagTitle, style: .default) { [weak self] _ in
             keypad.showDiagonalKeys.toggle()
-            self?.showToast(message: keypad.showDiagonalKeys ? "Đã hiện phím chéo" : "Đã ẩn phím chéo")
+            self?.showToast(message: keypad.showDiagonalKeys ? "Diagonales visibles" : "Diagonales ocultas")
         })
 
-        let softTitle = (keypad.showSoftKeys ? "✓ " : "   ") + "Phím chức năng (L, R)"
+        let softTitle = (keypad.showSoftKeys ? "✓ " : "   ") + "Teclas de función (L, R)"
         alert.addAction(UIAlertAction(title: softTitle, style: .default) { [weak self] _ in
             keypad.showSoftKeys.toggle()
-            self?.showToast(message: keypad.showSoftKeys ? "Đã hiện phím L, R" : "Đã ẩn phím L, R")
+            self?.showToast(message: keypad.showSoftKeys ? "L y R visibles" : "L y R ocultas")
         })
 
-        let fireTitle = (keypad.showFireKey ? "✓ " : "   ") + "Phím giữa F (Chọn / Đánh)"
+        let fireTitle = (keypad.showFireKey ? "✓ " : "   ") + "Tecla central F (elegir / atacar)"
         alert.addAction(UIAlertAction(title: fireTitle, style: .default) { [weak self] _ in
             keypad.showFireKey.toggle()
-            self?.showToast(message: keypad.showFireKey ? "Đã hiện phím F" : "Đã ẩn phím F")
+            self?.showToast(message: keypad.showFireKey ? "F visible" : "F oculta")
         })
 
         alert.addAction(UIAlertAction(title: "Xong", style: .cancel))
@@ -1741,22 +1741,22 @@ class GameViewController: UIViewController {
 
     // Hẹn giờ tự tắt
     private func promptShutdownTimer() {
-        let alert = UIAlertController(title: "⏰ Hẹn giờ tự tắt game", message: "Chọn thời gian sau đó tự động đóng game:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "⏰ Cerrar el juego en...", message: "¿En cuánto tiempo se cierra el juego?", preferredStyle: .alert)
         for mins in [15, 30, 60, 120] {
-            alert.addAction(UIAlertAction(title: "\(mins) phút", style: .default) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "\(mins) minutos", style: .default) { [weak self] _ in
                 self?.autoShutdownTimer?.invalidate()
                 self?.autoShutdownTimer = Timer.scheduledTimer(withTimeInterval: Double(mins * 60), repeats: false) { [weak self] _ in
                     self?.backTapped()
                 }
-                self?.showToast(message: "Đã đặt hẹn giờ tự tắt sau \(mins) phút")
+                self?.showToast(message: "El juego se cerrará en \(mins) minutos")
             })
         }
-        alert.addAction(UIAlertAction(title: "Hủy hẹn giờ", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Quitar el temporizador", style: .destructive) { [weak self] _ in
             self?.autoShutdownTimer?.invalidate()
             self?.autoShutdownTimer = nil
-            self?.showToast(message: "Đã hủy hẹn giờ")
+            self?.showToast(message: "Temporizador quitado")
         })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = menuBtn
             popover.sourceRect = menuBtn.bounds
@@ -1766,16 +1766,16 @@ class GameViewController: UIViewController {
 
     // Giới hạn FPS
     private func promptFPSLimit() {
-        let alert = UIAlertController(title: "Giới hạn FPS", message: "Chọn tốc độ khung hình mong muốn:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Límite de FPS", message: "Elige los cuadros por segundo:", preferredStyle: .alert)
         for fps in [60, 30, 15] {
             alert.addAction(UIAlertAction(title: "\(fps) FPS", style: .default) { [weak self] _ in
-                self?.showToast(message: "Đã chuyển giới hạn sang \(fps) FPS")
+                self?.showToast(message: "Límite: \(fps) FPS")
             })
         }
-        alert.addAction(UIAlertAction(title: "Không giới hạn", style: .default) { [weak self] _ in
-            self?.showToast(message: "Đã bật FPS không giới hạn")
+        alert.addAction(UIAlertAction(title: "Sin límite", style: .default) { [weak self] _ in
+            self?.showToast(message: "FPS sin límite")
         })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = menuBtn
             popover.sourceRect = menuBtn.bounds
@@ -1834,12 +1834,12 @@ class GameViewController: UIViewController {
     @objc func promptTextInput() {
         softKeyHaptic.impactOccurred(intensity: 0.7)
         let alert = UIAlertController(
-            title: "⌨ Nhập văn bản vào Game",
-            message: "Gõ tài khoản, mật khẩu hoặc tin nhắn chat:",
+            title: "⌨ Escribir en el juego",
+            message: "Escribe usuario, contraseña o mensaje:",
             preferredStyle: .alert
         )
         alert.addTextField { tf in
-            tf.placeholder = "Gõ nội dung tại đây..."
+            tf.placeholder = "Escribe aquí..."
             tf.autocorrectionType = .no
             tf.autocapitalizationType = .none
             tf.clearButtonMode = .whileEditing
@@ -1850,18 +1850,18 @@ class GameViewController: UIViewController {
                 tf.text = clip
             }
         }
-        alert.addAction(UIAlertAction(title: "Gửi & Enter (↵)", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: "Enviar y Enter (↵)", style: .default) { [weak self, weak alert] _ in
             guard let text = alert?.textFields?.first?.text, !text.isEmpty else { return }
             self?.sendTextToMIDlet(text, sendEnter: true)
         })
-        alert.addAction(UIAlertAction(title: "Chỉ gửi", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: "Solo enviar", style: .default) { [weak self, weak alert] _ in
             guard let text = alert?.textFields?.first?.text, !text.isEmpty else { return }
             self?.sendTextToMIDlet(text, sendEnter: false)
         })
-        alert.addAction(UIAlertAction(title: "⌫ Xóa hết", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "⌫ Borrar todo", style: .destructive) { [weak self] _ in
             self?.sendClearToMIDlet()
         })
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -1923,7 +1923,7 @@ class GameViewController: UIViewController {
 
     func showTextBoxView() {
         let formTitle = String(cString: j2me_ui_get_form_title())
-        titleLabel.text = formTitle.isEmpty ? "Tài khoản" : formTitle
+        titleLabel.text = formTitle.isEmpty ? "Cuenta" : formTitle
         textBoxView.buildFromNativeData()
         textBoxView.isHidden = false
         emulatorView.isHidden = true
@@ -2040,9 +2040,9 @@ class GameViewController: UIViewController {
     private func handleUnexpectedGameExit() {
         guard !isUserInitiatedExit else { return }
         hasStartedGame = false
-        DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: "\(appName) (Tự kết nối lại...)")
+        DecadeBackgroundKeeper.shared.updateNowPlayingGame(name: "\(appName) (reconectando...)")
 
-        showToast(message: "🔄 Game đã ngắt kết nối. Đang tự động kết nối lại sau 2 giây...")
+        showToast(message: "🔄 El juego se desconectó. Reconectando en 2 segundos...")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self = self, !self.isUserInitiatedExit else { return }
@@ -2082,17 +2082,17 @@ class GameViewController: UIViewController {
 
     @objc private func backTapped() {
         let alert = UIAlertController(
-            title: "Trạng Thái Game",
-            message: "Bạn muốn tiếp tục treo game chạy nền 24/7 hay thoát game hoàn toàn?",
+            title: "Juego",
+            message: "¿Quieres dejar el juego abierto o cerrarlo?",
             preferredStyle: .actionSheet
         )
-        alert.addAction(UIAlertAction(title: "Ẩn & Treo ngầm (Giữ game chạy 24/7)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Dejarlo abierto", style: .default) { [weak self] _ in
             self?.minimizeToLobby()
         })
-        alert.addAction(UIAlertAction(title: "Thoát game hoàn toàn", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Cerrar el juego", style: .destructive) { [weak self] _ in
             self?.forceExitGame()
         })
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = backArrowBtn
             popover.sourceRect = backArrowBtn.bounds

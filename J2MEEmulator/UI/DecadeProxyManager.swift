@@ -41,7 +41,7 @@ struct ProxyItem: Codable, Equatable {
         if hasAuth {
             parts.append("👤 \(user)")
         } else {
-            parts.append("Không mật khẩu")
+            parts.append("Sin contraseña")
         }
         if let lat = lastLatencyMs, lat > 0 {
             parts.append("⚡ \(lat)ms")
@@ -216,7 +216,7 @@ class DecadeProxyManager {
         let startTime = CFAbsoluteTimeGetCurrent()
         let host = NWEndpoint.Host(item.host)
         guard let port = NWEndpoint.Port(rawValue: UInt16(item.port)) else {
-            completion(false, nil, "Cổng không hợp lệ")
+            completion(false, nil, "Puerto no válido")
             return
         }
 
@@ -249,7 +249,7 @@ class DecadeProxyManager {
                 connection.cancel()
                 DispatchQueue.main.async {
                     if var updated = self?.proxies.first(where: { $0.id == item.id }) {
-                        updated.lastTestStatus = "Lỗi kết nối"
+                        updated.lastTestStatus = "Error de conexión"
                         self?.updateProxy(updated)
                     }
                     completion(false, nil, err.localizedDescription)
@@ -259,7 +259,7 @@ class DecadeProxyManager {
                 finished = true
                 connection.cancel()
                 DispatchQueue.main.async {
-                    completion(false, nil, "Chờ timeout: \(err.localizedDescription)")
+                    completion(false, nil, "Tiempo agotado: \(err.localizedDescription)")
                 }
 
             default:
@@ -275,7 +275,7 @@ class DecadeProxyManager {
                 finished = true
                 connection.cancel()
                 DispatchQueue.main.async {
-                    completion(false, nil, "Quá thời gian kết nối (Timeout 6s)")
+                    completion(false, nil, "Tiempo de conexión agotado (6 s)")
                 }
             }
         }

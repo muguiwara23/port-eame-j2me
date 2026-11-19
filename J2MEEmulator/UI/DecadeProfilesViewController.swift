@@ -18,10 +18,10 @@ class DecadeProfilesViewController: UIViewController, UITableViewDataSource, UIT
     }
 
     private let profiles: [Profile] = [
-        Profile(name: "Mặc định (Default)", desc: "Bố cục tiêu chuẩn cân bằng cho mọi game", fps: 60, layout: 0, alpha: 180),
-        Profile(name: "Ninja School Online (Tối ưu)", desc: "Phím mũi tên 8 hướng + nút * # góc, phản hồi siêu nhanh 60 FPS", fps: 60, layout: 0, alpha: 220),
-        Profile(name: "Bản mod ghép (Tiết kiệm RAM)", desc: "Tối ưu bộ nhớ, 30 FPS ổn định khi mở nhiều tab", fps: 30, layout: 0, alpha: 160),
-        Profile(name: "Bàn phím số điện thoại (Numpad)", desc: "Phù hợp game đánh theo lượt, nhập liệu nhiều", fps: 60, layout: 2, alpha: 200),
+        Profile(name: "Predeterminado", desc: "Equilibrado para cualquier juego", fps: 60, layout: 0, alpha: 180),
+        Profile(name: "Acción rápida", desc: "Flechas en 8 direcciones y * # en las esquinas, 60 FPS", fps: 60, layout: 0, alpha: 220),
+        Profile(name: "Varias pestañas (menos RAM)", desc: "Menos memoria, 30 FPS estables con varias pestañas", fps: 30, layout: 0, alpha: 160),
+        Profile(name: "Teclado numérico", desc: "Para juegos por turnos o con mucho texto", fps: 60, layout: 2, alpha: 200),
     ]
 
     private var activeIndex: Int = 0
@@ -31,7 +31,7 @@ class DecadeProfilesViewController: UIViewController, UITableViewDataSource, UIT
         super.viewDidLoad()
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = UIColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 1.0)
-        title = "Hồ sơ cấu hình"
+        title = "Perfiles"
 
         setupNavBar()
         setupUI()
@@ -47,7 +47,7 @@ class DecadeProfilesViewController: UIViewController, UITableViewDataSource, UIT
         navigationController?.navigationBar.scrollEdgeAppearance = navBarAppearance
         navigationController?.navigationBar.tintColor = .white
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Đóng", style: .plain, target: self, action: #selector(closeTapped))
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Cerrar", style: .plain, target: self, action: #selector(closeTapped))
     }
 
     @objc private func closeTapped() {
@@ -108,7 +108,7 @@ class DecadeProfilesViewController: UIViewController, UITableViewDataSource, UIT
 
         tableView.reloadData()
 
-        let alert = UIAlertController(title: "Đã kích hoạt", message: "Đã áp dụng hồ sơ: \(selected.name)", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Activo", message: "Perfil aplicado: \(selected.name)", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
             self?.dismiss(animated: true)
         })

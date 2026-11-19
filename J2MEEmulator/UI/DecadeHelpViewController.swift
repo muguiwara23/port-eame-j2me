@@ -13,7 +13,7 @@ class DecadeHelpViewController: UIViewController {
         super.viewDidLoad()
         overrideUserInterfaceStyle = .light
         view.backgroundColor = UIColor(red: 0.96, green: 0.97, blue: 0.98, alpha: 1.0)
-        title = "Trợ giúp & Hướng dẫn"
+        title = "Ayuda"
 
         setupNavBar()
         setupUI()
@@ -28,7 +28,7 @@ class DecadeHelpViewController: UIViewController {
         navigationController?.navigationBar.scrollEdgeAppearance = navBarAppearance
         navigationController?.navigationBar.tintColor = .white
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Đóng", style: .plain, target: self, action: #selector(closeTapped))
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Cerrar", style: .plain, target: self, action: #selector(closeTapped))
     }
 
     @objc private func closeTapped() {
@@ -63,43 +63,43 @@ class DecadeHelpViewController: UIViewController {
         ])
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "1. Thêm game Java (.jar)",
-            content: "Nhấn vào nút dấu cộng (+) màu đỏ ở góc dưới bên phải màn hình chính để chọn và nhập file game .jar từ Files (Tệp) trên iPhone."
+            title: "1. Agregar juegos Java (.jar)",
+            content: "Toca el botón (+) de la pantalla principal y elige un archivo .jar en la app Archivos. También puedes copiar los .jar a la carpeta de Port/eame Java en Archivos."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "2. Chạy bản mod ghép nhiều tài khoản",
-            content: "• Bản mod ghép (Ninja School Online, MrQuyet, AngelChip...) tự động nhận diện các phiên bản độc lập.\n• Bấm nút [+] trên thanh công cụ trong game để thêm 1 tab mới.\n• Bấm nút [++] để mở nhanh nhiều tab cùng lúc (tối đa 100 tab).\n• Bấm vào các số tab [1], [2], [3]... trên thanh tab để chuyển qua lại giữa các tài khoản."
+            title: "2. Varias pestañas",
+            content: "• Toca [+] en la barra del juego para abrir otra pestaña.\n• Toca [++] para abrir varias a la vez.\n• Toca los números [1], [2], [3]... para cambiar de pestaña."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "3. Tùy chỉnh bàn phím ảo tự do",
-            content: "• Bấm nút 3 chấm [⋮] góc trên bên phải màn hình khi đang chơi game.\n• Chọn 'Chế độ chỉnh sửa cấu trúc phím': Bạn có thể kéo thả bất kỳ phím nào tới vị trí mong muốn trên màn hình.\n• Chọn 'Chế độ thay đổi kích cỡ cấu trúc phím': Dùng 2 ngón tay thu phóng (pinch) để phóng to / thu nhỏ phím.\n• Khi đã ưng ý, bấm lại [⋮] -> 'Hoàn thành chế độ chỉnh sửa' để lưu vị trí phím."
+            title: "3. Acomodar el teclado en pantalla",
+            content: "• Toca [⋮] arriba a la derecha mientras juegas.\n• 'Mover teclas': arrastra cualquier tecla adonde quieras.\n• 'Cambiar tamaño de teclas': pellizca con dos dedos para agrandarlas o achicarlas.\n• Al terminar, toca [⋮] → 'Terminar edición' para guardar."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "4. Ẩn từng phím bấm",
-            content: "• Bấm [⋮] -> chọn 'Ẩn nút'.\n• Tích chọn hoặc bỏ chọn những phím bạn muốn hiển thị hoặc ẩn đi (1-9, 0, *, #, L, R, C, các mũi tên, F...).\n• Bấm 'OK' màu đỏ để áp dụng."
+            title: "4. Ocultar teclas",
+            content: "• Toca [⋮] → 'Ocultar teclas'.\n• Marca o desmarca las teclas que quieres ver (1-9, 0, *, #, L, R, C, flechas, F...).\n• Toca 'OK' para aplicar."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "5. Bàn phím gõ chữ (Chat)",
-            content: "• Khi cần nhập văn bản chat trong game, bấm vào biểu tượng bàn phím [⌨] ở thanh công cụ trên cùng.\n• Nhập nội dung xong bấm nút '✓ Xong' màu xanh để đóng bàn phím và gửi vào game."
+            title: "5. Escribir texto",
+            content: "• Para escribir en el juego, toca el teclado [⌨] de la barra de arriba.\n• Al terminar, toca '✓ Listo' para enviarlo al juego."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "6. Quản lý Proxy & Thay IP máy chủ",
-            content: "• Vào menu 3 chấm [⋮] ở màn hình chính ngoài danh sách game.\n• 'Quản lý Proxy': Kết nối mạng J2ME qua proxy HTTP / SOCKS5.\n• 'Thay IP Phiên Bản': Đổi IP server game sang máy chủ private tùy ý."
+            title: "6. Proxies y servidor",
+            content: "• En la pantalla principal, toca [⋮].\n• 'Proxies': conecta los juegos por un proxy HTTP o SOCKS5.\n• 'Cambiar servidor': cambia la IP del servidor de un juego."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "7. Cửa sổ nổi PiP ngoài màn hình & Cửa sổ nhỏ thu phóng",
-            content: "• Cửa sổ nổi ngoài màn hình (PiP): Tự động hiện khi chuyển ứng dụng hoặc chọn trong menu. Có thể xem game chạy trực tiếp khi đang ở màn hình chính hoặc lướt Facebook, TikTok, Safari.\n• Cửa sổ nhỏ kéo to nhỏ tuỳ ý (Mini Window): Cửa sổ mini trong ứng dụng, có thể dùng 2 ngón tay kéo to nhỏ (pinch) hoặc kéo góc dưới bên phải để chỉnh kích thước tuỳ thích."
+            title: "7. Ventana flotante y ventana pequeña",
+            content: "• Ventana flotante (PiP): muestra el juego encima de otras apps.\n• Ventana pequeña: dentro de la app; pellizca o arrastra la esquina para cambiar su tamaño."
         ))
 
         stack.addArrangedSubview(makeSectionCard(
-            title: "8. Thông tin tác giả",
-            content: "• Tác giả: Vạn Trần idol J2me NSV IOS\n• Phiên bản: J2ME Decade iOS v2.0 Native\n• Tính năng nổi bật: Chơi và treo nhiều nick Ninja School Online (NSO), hỗ trợ chạy nền, PiP ngoài màn hình đè ứng dụng khác, cửa sổ nhỏ kéo to nhỏ tuỳ ý."
+            title: "8. Créditos",
+            content: "• Port/eame Java, basado en J2ME-Decade (iOS) de Vạn Trần.\n• Emulador J2ME para iOS de Alexander Goremykin, API de J2ME-Loader, miniJVM de digitalgust.\n• Licencia Apache 2.0."
         ))
     }
 

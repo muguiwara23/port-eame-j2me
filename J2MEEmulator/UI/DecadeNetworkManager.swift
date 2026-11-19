@@ -23,9 +23,9 @@ final class DecadeNetworkManager {
         var displayName: String {
             switch self {
             case .wifi: return "Wi-Fi"
-            case .cellular: return "5G / 4G Di động"
-            case .other: return "Mạng dây / Khác"
-            case .none: return "Mất kết nối"
+            case .cellular: return "Datos móviles"
+            case .other: return "Cable u otra"
+            case .none: return "Sin conexión"
             }
         }
 
@@ -87,13 +87,13 @@ final class DecadeNetworkManager {
         if oldType != newType && connected {
             let msg: String
             if oldType == .wifi && newType == .cellular {
-                msg = "📶 Chuyển mạng thông minh: Đã tự động chuyển sang 5G/4G Di động"
+                msg = "📶 Ahora por datos móviles"
                 print("[DecadeNetworkManager] Seamless failover: Wi-Fi lost -> 5G/Cellular active")
             } else if oldType == .cellular && newType == .wifi {
-                msg = "📶 Chuyển mạng thông minh: Đã tự động chuyển sang Wi-Fi"
+                msg = "📶 Ahora por Wi-Fi"
                 print("[DecadeNetworkManager] Seamless failover: Cellular -> Wi-Fi active")
             } else {
-                msg = "📶 Mạng thay đổi: Đang kết nối qua \(newType.displayName)"
+                msg = "📶 Red: \(newType.displayName)"
             }
 
             DispatchQueue.main.async { [weak self] in
@@ -106,7 +106,7 @@ final class DecadeNetworkManager {
                 )
             }
         } else if !connected && oldType != .none {
-            let msg = "⚠️ Mất kết nối mạng! Đang tìm kiếm Wi-Fi hoặc sóng 5G..."
+            let msg = "⚠️ Sin conexión. Buscando red..."
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.onNetworkSwitched?(.none, msg)
@@ -120,6 +120,6 @@ final class DecadeNetworkManager {
     }
 
     func currentNetworkDescription() -> String {
-        return isConnected ? currentType.displayName : "Ngoại tuyến"
+        return isConnected ? currentType.displayName : "Sin conexión"
     }
 }

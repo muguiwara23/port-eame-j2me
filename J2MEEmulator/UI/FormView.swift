@@ -55,7 +55,7 @@ class J2METextBoxView: UIView, UITextViewDelegate {
         addSubview(textView)
 
         // Placeholder
-        placeholderLabel.text = "Chạm vào đây để nhập nội dung..."
+        placeholderLabel.text = "Toca aquí para escribir..."
         placeholderLabel.font = .systemFont(ofSize: 18)
         placeholderLabel.textColor = UIColor(white: 0.6, alpha: 1.0)
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -112,7 +112,7 @@ class J2METextBoxView: UIView, UITextViewDelegate {
         toolbar.barTintColor = UIColor(red: 0.95, green: 0.96, blue: 0.97, alpha: 1.0)
 
         // Clear / Xóa text button on left
-        let clearBtn = UIBarButtonItem(title: "Xóa", style: .plain, target: self, action: #selector(clearText))
+        let clearBtn = UIBarButtonItem(title: "Borrar", style: .plain, target: self, action: #selector(clearText))
         clearBtn.tintColor = .systemGray
 
         let flexSpace = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
@@ -187,8 +187,8 @@ class J2METextBoxView: UIView, UITextViewDelegate {
             btn.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
             btn.tag = Int(cmdId)
 
-            let isOk = cmdLabel.lowercased().contains("ok") || cmdLabel.lowercased().contains("chọn") || cmdLabel.lowercased().contains("select")
-            let isCancel = cmdLabel.lowercased().contains("cancel") || cmdLabel.lowercased().contains("hủy") || cmdLabel.lowercased().contains("thoát")
+            let isOk = cmdLabel.lowercased().contains("ok") || cmdLabel.lowercased().contains("chọn") || cmdLabel.lowercased().contains("select") || cmdLabel.lowercased().contains("aceptar") || cmdLabel.lowercased().contains("elegir")
+            let isCancel = cmdLabel.lowercased().contains("cancel") || cmdLabel.lowercased().contains("hủy") || cmdLabel.lowercased().contains("thoát") || cmdLabel.lowercased().contains("cancelar") || cmdLabel.lowercased().contains("salir")
 
             if isOk {
                 btn.backgroundColor = UIColor(red: 0.12, green: 0.41, blue: 0.82, alpha: 1.0)
@@ -342,7 +342,7 @@ class FormView: UIView, UITextFieldDelegate {
 
         if commands.isEmpty {
             // Default Cancel/Back
-            let rightBtn = makeRedButton(title: "QUAY LẠI", tag: 0)
+            let rightBtn = makeRedButton(title: "ATRÁS", tag: 0)
             commandBar.addArrangedSubview(UIView()) // spacer
             commandBar.addArrangedSubview(rightBtn)
         } else if commands.count <= 2 {
@@ -362,7 +362,7 @@ class FormView: UIView, UITextFieldDelegate {
 
             let exitCmd = commands.first {
                 let l = $0.label.lowercased()
-                return $0.type == 7 || $0.type == 2 || l.contains("thoát") || l.contains("quay lại") || l.contains("back") || l.contains("hủy")
+                return $0.type == 7 || $0.type == 2 || l.contains("thoát") || l.contains("quay lại") || l.contains("back") || l.contains("hủy") || l.contains("atrás") || l.contains("volver") || l.contains("salir")
             } ?? commands.last!
             let rightBtn = makeRedButton(title: exitCmd.label.uppercased(), tag: Int(exitCmd.id))
             commandBar.addArrangedSubview(rightBtn)
@@ -393,7 +393,7 @@ class FormView: UIView, UITextFieldDelegate {
                 j2me_input_post_key(Int32(J2ME_UI_COMMAND_ACTION), cmd.id)
             })
         }
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = sender
             popover.sourceRect = sender.bounds
@@ -854,7 +854,7 @@ class J2MEListView: UIView, UITableViewDataSource, UITableViewDelegate {
 
         if commands.isEmpty {
             let leftBtn = makeRedButton(title: "MENU", tag: -1)
-            let rightBtn = makeRedButton(title: "THOÁT", tag: 1)
+            let rightBtn = makeRedButton(title: "SALIR", tag: 1)
             bottomButtonBar.addArrangedSubview(leftBtn)
             bottomButtonBar.addArrangedSubview(rightBtn)
         } else if commands.count <= 2 {
@@ -865,14 +865,14 @@ class J2MEListView: UIView, UITableViewDataSource, UITableViewDelegate {
                 bottomButtonBar.addArrangedSubview(rightBtn)
             }
         } else {
-            // > 2 commands: Left button is "MENU" which opens popup menu (Screenshot 2), Right is "THOÁT"
+            // > 2 commands: Left button is "MENU" which opens popup menu (Screenshot 2), Right is "SALIR"
             let menuBtn = makeRedButton(title: "MENU", tag: -1)
             menuBtn.addTarget(self, action: #selector(menuButtonTapped(_:)), for: .touchUpInside)
             bottomButtonBar.addArrangedSubview(menuBtn)
 
             let exitCmd = commands.first {
                 let l = $0.label.lowercased()
-                return $0.type == 7 || $0.type == 2 || l.contains("thoát") || l.contains("back") || l.contains("quay lại")
+                return $0.type == 7 || $0.type == 2 || l.contains("thoát") || l.contains("back") || l.contains("quay lại") || l.contains("atrás") || l.contains("volver") || l.contains("salir")
             } ?? commands.last!
             let exitBtn = makeRedButton(title: exitCmd.label.uppercased(), tag: Int(exitCmd.id))
             bottomButtonBar.addArrangedSubview(exitBtn)
@@ -927,7 +927,7 @@ class J2MEListView: UIView, UITableViewDataSource, UITableViewDelegate {
             })
         }
 
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = sourceView
             popover.sourceRect = sourceView.bounds

@@ -2,7 +2,7 @@
 //  DecadeHideButtonsDialog.swift
 //  J2MEEmulator
 //
-//  Authentic 1:1 Decade "Ẩn nút" dialog matching Android Decade Screenshot 1.
+//  Authentic 1:1 Decade "Ocultar teclas" dialog matching Android Decade Screenshot 1.
 //  In Android Decade, checked = HIDDEN (Ẩn), unchecked = VISIBLE (Hiện).
 //
 
@@ -53,7 +53,7 @@ class DecadeHideButtonsDialog: UIViewController, UITableViewDataSource, UITableV
         view.addSubview(dialogView)
 
         let titleLabel = UILabel()
-        titleLabel.text = "Ẩn nút"
+        titleLabel.text = "Ocultar teclas"
         titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
         titleLabel.textColor = .black
         titleLabel.translatesAutoresizingMaskIntoConstraints = false

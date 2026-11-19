@@ -2,7 +2,7 @@
 //  DecadeProxyViewController.swift
 //  J2MEEmulator
 //
-//  1:1 Replica of Decade APK "Quản lý Proxy" & "Gán proxy cho tab":
+//  1:1 Replica of Decade APK "Proxies" & "Gán proxy cho tab":
 //  - Danh Sách Proxy: CRUD, SOCKS5 & HTTP, Bulk Import, Test Latency
 //  - Gán Proxy Cho Tab: Gán proxy cho từng tab game bên trong theo từng tab độc lập:
 //    Tab 1 - 1 (Ký hiệu: a), Tab 1 - 2 (Ký hiệu: b)... Tab 1 - 27 (Ký hiệu: aa)
@@ -14,7 +14,7 @@ import UIKit
 
 class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
 
-    private let segmentedControl = UISegmentedControl(items: ["Danh Sách Proxy", "Gán Proxy Cho Tab"])
+    private let segmentedControl = UISegmentedControl(items: ["Proxies", "Asignar proxy a pestañas"])
     private let tableView = UITableView(frame: .zero, style: .insetGrouped)
 
     // Current proxy selected for quick-ticking tabs (nil = direct/no proxy)
@@ -34,7 +34,7 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
     override func viewDidLoad() {
         super.viewDidLoad()
         overrideUserInterfaceStyle = .dark
-        title = "Quản lý Proxy"
+        title = "Proxies"
         view.backgroundColor = UIColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 1.0)
 
         setupNavBar()
@@ -86,7 +86,7 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
         navigationController?.navigationBar.scrollEdgeAppearance = navBarAppearance
         navigationController?.navigationBar.tintColor = .white
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Đóng", style: .plain, target: self, action: #selector(closeTapped))
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Cerrar", style: .plain, target: self, action: #selector(closeTapped))
 
         let addBtn = UIBarButtonItem(image: UIImage(systemName: "plus"), style: .plain, target: self, action: #selector(addProxyTapped))
         let importBtn = UIBarButtonItem(image: UIImage(systemName: "square.and.arrow.down"), style: .plain, target: self, action: #selector(bulkImportTapped))
@@ -142,22 +142,22 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
     // MARK: - Proxy CRUD
 
     @objc private func addProxyTapped() {
-        let alert = UIAlertController(title: "Thêm Proxy Mới", message: "Nhập thông tin máy chủ proxy:", preferredStyle: .alert)
-        alert.addTextField { tf in tf.placeholder = "IP / Tên miền (Host)" }
-        alert.addTextField { tf in tf.placeholder = "Cổng (Port, vd: 1080 / 8080)"; tf.keyboardType = .numberPad }
-        alert.addTextField { tf in tf.placeholder = "Tài khoản (Tùy chọn)" }
-        alert.addTextField { tf in tf.placeholder = "Mật khẩu (Tùy chọn)"; tf.isSecureTextEntry = true }
+        let alert = UIAlertController(title: "Agregar proxy", message: "Datos del servidor proxy:", preferredStyle: .alert)
+        alert.addTextField { tf in tf.placeholder = "IP o dominio" }
+        alert.addTextField { tf in tf.placeholder = "Puerto (por ejemplo 1080 u 8080)"; tf.keyboardType = .numberPad }
+        alert.addTextField { tf in tf.placeholder = "Usuario (opcional)" }
+        alert.addTextField { tf in tf.placeholder = "Contraseña (opcional)"; tf.isSecureTextEntry = true }
 
-        let socksAction = UIAlertAction(title: "Loại: SOCKS5", style: .default) { [weak self, weak alert] _ in
+        let socksAction = UIAlertAction(title: "Tipo: SOCKS5", style: .default) { [weak self, weak alert] _ in
             self?.handleSaveProxy(alert: alert, type: "socks5")
         }
-        let httpAction = UIAlertAction(title: "Loại: HTTP", style: .default) { [weak self, weak alert] _ in
+        let httpAction = UIAlertAction(title: "Tipo: HTTP", style: .default) { [weak self, weak alert] _ in
             self?.handleSaveProxy(alert: alert, type: "http")
         }
 
         alert.addAction(socksAction)
         alert.addAction(httpAction)
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -178,28 +178,28 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
 
     @objc private func bulkImportTapped() {
         let alert = UIAlertController(
-            title: "Nhập Proxy Hàng Loạt",
-            message: "Dán danh sách proxy theo định dạng:\nhost:port hoặc host:port:user:pass (mỗi dòng 1 proxy)",
+            title: "Importar proxies",
+            message: "Pega la lista con el formato:\nhost:puerto o host:puerto:usuario:contraseña (uno por línea)",
             preferredStyle: .alert
         )
         alert.addTextField { tf in
-            tf.placeholder = "Dán proxy tại đây..."
+            tf.placeholder = "Pega los proxies aquí..."
         }
-        alert.addAction(UIAlertAction(title: "Nhập SOCKS5", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: "Importar SOCKS5", style: .default) { [weak self, weak alert] _ in
             guard let text = alert?.textFields?.first?.text, !text.isEmpty else { return }
             let count = DecadeProxyManager.shared.importProxies(text: text, defaultType: "socks5")
             self?.loadData()
             self?.tableView.reloadData()
-            self?.showToast("Đã nhập thành công \(count) proxy SOCKS5!")
+            self?.showToast("Se importaron \(count) proxies SOCKS5")
         })
-        alert.addAction(UIAlertAction(title: "Nhập HTTP", style: .default) { [weak self, weak alert] _ in
+        alert.addAction(UIAlertAction(title: "Importar HTTP", style: .default) { [weak self, weak alert] _ in
             guard let text = alert?.textFields?.first?.text, !text.isEmpty else { return }
             let count = DecadeProxyManager.shared.importProxies(text: text, defaultType: "http")
             self?.loadData()
             self?.tableView.reloadData()
-            self?.showToast("Đã nhập thành công \(count) proxy HTTP!")
+            self?.showToast("Se importaron \(count) proxies HTTP")
         })
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -218,7 +218,7 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
         if let p = curProxy {
             btnTitle = "⚡ \(p.displayTitle) (\(p.type.uppercased()))  ▼"
         } else {
-            btnTitle = "🚫 Không dùng proxy (Mạng trực tiếp)  ▼"
+            btnTitle = "🚫 Sin proxy (conexión directa)  ▼"
         }
         btn.setTitle(btnTitle, for: .normal)
     }
@@ -247,7 +247,7 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
 
         // Title row
         let titleLabel = UILabel()
-        titleLabel.text = "Proxy đang chọn để gán (Tích tab để gán):"
+        titleLabel.text = "Proxy elegido (marca las pestañas):"
         titleLabel.font = .systemFont(ofSize: 13, weight: .bold)
         titleLabel.textColor = UIColor(red: 0.90, green: 0.94, blue: 1.0, alpha: 1.0)
         stack.addArrangedSubview(titleLabel)
@@ -284,8 +284,8 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
 
     @objc private func showProxyPickerDropdown() {
         let sheet = UIAlertController(
-            title: "Chọn Proxy Cần Gán",
-            message: "Sau khi chọn, bấm vào các tab game bên dưới để gán proxy này cho các tab đó:",
+            title: "Elegir proxy",
+            message: "Después toca las pestañas de abajo para asignarles este proxy:",
             preferredStyle: .actionSheet
         )
 
@@ -300,13 +300,13 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
         }
 
         let isDirect = (selectedProxyId == nil)
-        sheet.addAction(UIAlertAction(title: "\(isDirect ? "✓ " : "")🚫 Không dùng proxy (Trực tiếp)", style: .destructive) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: "\(isDirect ? "✓ " : "")🚫 Sin proxy (directo)", style: .destructive) { [weak self] _ in
             self?.selectedProxyId = nil
             self?.updateTabAssignmentHeader()
             self?.tableView.reloadData()
         })
 
-        sheet.addAction(UIAlertAction(title: "Hủy", style: .cancel))
+        sheet.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
         present(sheet, animated: true)
     }
 
@@ -334,11 +334,11 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let title: String?
         if segmentedControl.selectedSegmentIndex == 0 {
-            title = "DANH SÁCH PROXY ĐÃ LƯU (\(proxies.count))"
+            title = "PROXIES GUARDADOS (\(proxies.count))"
         } else {
             guard section < independentSessions.count else { return nil }
             let s = independentSessions[section]
-            title = "TAB ĐỘC LẬP \(s.slot + 1): \(s.appName) (\(s.tabs.count) TAB CON)"
+            title = "PESTAÑA \(s.slot + 1): \(s.appName) (\(s.tabs.count) SUBPESTAÑAS)"
         }
         guard let t = title else { return nil }
 
@@ -367,7 +367,7 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
         if segmentedControl.selectedSegmentIndex == 1 && section == independentSessions.count - 1 {
             let container = UIView()
             let label = UILabel()
-            label.text = "Chạm vào tab nào để tích [✓] gán proxy đang chọn cho tab đó. Bấm lại để bỏ gán."
+            label.text = "Toca una pestaña para marcarla [✓] y asignarle el proxy elegido. Tócala otra vez para quitarlo."
             label.font = .systemFont(ofSize: 13, weight: .medium)
             label.textColor = UIColor(red: 0.80, green: 0.85, blue: 0.95, alpha: 1.0)
             label.numberOfLines = 0
@@ -416,7 +416,7 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
             let slotIndex = session.slot
 
             // Format tab title: "Tab 1 - 1 (Ký hiệu: a)" or "Tab 2 - Avatar (Ký hiệu: a)"
-            let displayTitle = "Tab \(slotIndex + 1) - \(tab.name)  (Ký hiệu: \(tab.prefix))"
+            let displayTitle = "Pestaña \(slotIndex + 1) - \(tab.name)  (\(tab.prefix))"
             let assignedProxy = DecadeProxyManager.shared.proxyForTab(appId: session.appName, slot: slotIndex, tabPrefix: tab.prefix)
 
             // Is this tab currently assigned to the selected proxy?
@@ -433,10 +433,10 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
             config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
 
             if let p = assignedProxy {
-                config.secondaryText = "⚡ Đang dùng: \(p.displayTitle) (\(p.type.uppercased()))"
+                config.secondaryText = "⚡ En uso: \(p.displayTitle) (\(p.type.uppercased()))"
                 config.secondaryTextProperties.color = UIColor(red: 0.35, green: 0.90, blue: 0.55, alpha: 1.0)
             } else {
-                config.secondaryText = "🚫 Mạng trực tiếp (Không dùng proxy)"
+                config.secondaryText = "🚫 Conexión directa (sin proxy)"
                 config.secondaryTextProperties.color = UIColor(red: 1.0, green: 0.55, blue: 0.55, alpha: 1.0)
             }
             config.secondaryTextProperties.font = .systemFont(ofSize: 13, weight: .medium)
@@ -498,14 +498,14 @@ class DecadeProxyViewController: UIViewController, UITableViewDataSource, UITabl
     // MARK: - Testing Proxy Latency
 
     private func showTestingIndicator(for item: ProxyItem) {
-        let alert = UIAlertController(title: "Đang kiểm tra...", message: "Đang đo độ trễ tới \(item.displayTitle)...", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Probando...", message: "Midiendo la latencia de \(item.displayTitle)...", preferredStyle: .alert)
         present(alert, animated: true)
 
         DecadeProxyManager.shared.testProxy(item: item) { [weak self, weak alert] success, latencyMs, error in
             alert?.dismiss(animated: true) {
                 self?.tableView.reloadData()
-                let resultTitle = success ? "Kết nối thành công" : "Kết nối thất bại"
-                let resultMsg = success ? "Độ trễ: \(latencyMs ?? 0) ms" : (error ?? "Không thể kết nối tới proxy")
+                let resultTitle = success ? "Conexión correcta" : "No se pudo conectar"
+                let resultMsg = success ? "Latencia: \(latencyMs ?? 0) ms" : (error ?? "No se pudo conectar al proxy")
                 let resAlert = UIAlertController(title: resultTitle, message: resultMsg, preferredStyle: .alert)
                 resAlert.addAction(UIAlertAction(title: "OK", style: .default))
                 self?.present(resAlert, animated: true)

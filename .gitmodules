@@ -1,0 +1,3 @@
+[submodule "port-eame-kit"]
+	path = port-eame-kit
+	url = https://github.com/muguiwara23/port-eame-kit

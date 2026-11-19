@@ -35,10 +35,7 @@ final class DecadeLocationKeeper: NSObject, CLLocationManagerDelegate {
     /// Mặc định kích hoạt chế độ Định Vị BTS tiết kiệm pin (True) theo yêu cầu người dùng
     var isLocationModeActive: Bool {
         get {
-            if UserDefaults.standard.object(forKey: "decade_use_location_keepalive") == nil {
-                return true // Mặc định bật chế độ Định Vị BTS
-            }
-            return UserDefaults.standard.bool(forKey: "decade_use_location_keepalive")
+            return false // Port/eame: never uses the location
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "decade_use_location_keepalive")
@@ -162,7 +159,7 @@ final class DecadeNetworkKeeper {
         isRunning = true
         startPathMonitor()
         startHeartbeat()
-        print("[DecadeNetworkKeeper] ĐÃ BẬT Giữ Mạng 24/24 — Chống ngủ Wi-Fi & Chống đứt 4G/5G CGNAT.")
+        print("[DecadeNetworkKeeper] network keepalive on")
     }
 
     func stop() {
@@ -171,7 +168,7 @@ final class DecadeNetworkKeeper {
         heartbeatTimer = nil
         pathMonitor?.cancel()
         pathMonitor = nil
-        print("[DecadeNetworkKeeper] ĐÃ TẮT Giữ Mạng 24/24.")
+        print("[DecadeNetworkKeeper] network keepalive off")
     }
 
     private func startPathMonitor() {
@@ -183,7 +180,7 @@ final class DecadeNetworkKeeper {
             self.isNetworkConnected = connected
             let isCellular = path.isExpensive || path.usesInterfaceType(.cellular)
             let isWiFi = path.usesInterfaceType(.wifi)
-            print("[DecadeNetworkKeeper] Đường truyền mạng: \(connected ? "ONLINE" : "OFFLINE") [WiFi=\(isWiFi), 4G/5G=\(isCellular)]")
+            print("[DecadeNetworkKeeper] network: \(connected ? "ONLINE" : "OFFLINE") [WiFi=\(isWiFi), 4G/5G=\(isCellular)]")
             if connected {
                 self.sendProbe()
             }
@@ -258,12 +255,11 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    // Port/eame: no 24/7 background running (silent audio, location, network
+    // keepalive): a game pauses in the background like any iOS game.
     var isTreoActive: Bool {
         get {
-            if UserDefaults.standard.object(forKey: "decade_treo_tat_man") == nil {
-                return true
-            }
-            return UserDefaults.standard.bool(forKey: "decade_treo_tat_man")
+            return false
         }
         set {
             setTreoActive(newValue)
@@ -359,17 +355,18 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
     }
 
     func setTreoActive(_ active: Bool) {
-        UserDefaults.standard.set(active, forKey: "decade_treo_tat_man")
+        // Port/eame: always off (see isTreoActive).
+        UserDefaults.standard.set(false, forKey: "decade_treo_tat_man")
 
-        if active {
+        if active && isTreoActive {
             startKeepalive()
             UIApplication.shared.isIdleTimerDisabled = true
-            print("[DecadeBackgroundKeeper] Treo tắt màn & Chạy nền 24/7: ĐÃ BẬT")
+            print("[DecadeBackgroundKeeper] background keepalive on")
         } else {
             stopWatchdog()
             stopKeepalive()
             UIApplication.shared.isIdleTimerDisabled = false
-            print("[DecadeBackgroundKeeper] Treo tắt màn: ĐÃ TẮT")
+            print("[DecadeBackgroundKeeper] background keepalive off")
         }
     }
 
@@ -635,7 +632,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             path.lineWidth = 1.5
             path.stroke()
 
-            // 2. Header: 🎮 Tên Game (Trái) & "Đang chạy nền" (Xanh lá - Phải)
+            // 2. Header: 🎮 Tên Game (Trái) & "En segundo plano" (Xanh lá - Phải)
             let headerFont = UIFont.systemFont(ofSize: 19, weight: .bold)
             let headerAttrs: [NSAttributedString.Key: Any] = [
                 .font: headerFont,
@@ -649,7 +646,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
                 .font: statusFont,
                 .foregroundColor: UIColor(red: 0.18, green: 0.80, blue: 0.44, alpha: 1.0)
             ]
-            let statusText = "Đang chạy nền"
+            let statusText = "En segundo plano"
             let statusSize = (statusText as NSString).size(withAttributes: statusAttrs)
             (statusText as NSString).draw(at: CGPoint(x: size.width - statusSize.width - 24, y: 20), withAttributes: statusAttrs)
 
@@ -696,7 +693,7 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
                 .font: footerFont,
                 .foregroundColor: UIColor(red: 0.45, green: 0.50, blue: 0.58, alpha: 1.0)
             ]
-            let footerText = "Cập nhật \(timeString)"
+            let footerText = "Actualizado \(timeString)"
             (footerText as NSString).draw(at: CGPoint(x: 24, y: 172), withAttributes: footerAttrs)
         }
     }
@@ -729,8 +726,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
         let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = "🎮 \(currentGameName)"
-        content.subtitle = "Đang chạy nền"
-        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Tab: \(tabs)\nCập nhật \(timeString)"
+        content.subtitle = "En segundo plano"
+        content.body = "RAM: \(Int(ramMB)) MB   •   CPU: \(Int(cpu))%   •   Pestañas: \(tabs)\nActualizado \(timeString)"
         content.sound = nil // Hoàn toàn êm ái, không rung, không phát tiếng làm phiền
 
         // QUAN TRỌNG: Thiết lập passive để thông báo ghim cố định âm thầm trên màn hình khóa/trung tâm thông báo,
@@ -776,8 +773,8 @@ final class DecadeBackgroundKeeper: NSObject, AVAudioPlayerDelegate {
             lastCardImageRenderTime = now
         }
 
-        let netStatus = DecadeNetworkKeeper.shared.isNetworkConnected ? "Mạng 24/24: OK" : "Mất mạng"
-        let albumTitle = "Treo 24/24 Bất Tử • \(netStatus) • \(timeString)"
+        let netStatus = DecadeNetworkKeeper.shared.isNetworkConnected ? "Red: OK" : "Sin red"
+        let albumTitle = "En segundo plano • \(netStatus) • \(timeString)"
 
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: "🎮 \(currentGameName)",

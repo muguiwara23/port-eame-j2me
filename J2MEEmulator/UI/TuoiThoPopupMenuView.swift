@@ -92,7 +92,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnGameSettings = makeMenuItem(
             iconName: "slider.horizontal.3",
             iconColor: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0), // Purple #7E57C2
-            title: "Cài Đặt Game",
+            title: "Ajustes del juego",
             action: #selector(handleGameSettings)
         )
         contentStack.addArrangedSubview(btnGameSettings)
@@ -110,7 +110,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnCleanRam = makeMenuItem(
             iconName: "sparkles",
             iconColor: UIColor(red: 0.00, green: 0.54, blue: 0.48, alpha: 1.0), // Teal #00897B
-            title: "Dọn Dẹp RAM",
+            title: "Liberar RAM",
             action: #selector(handleCleanRam)
         )
         contentStack.addArrangedSubview(btnCleanRam)
@@ -119,7 +119,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnKbSettings = makeMenuItem(
             iconName: "keyboard.fill",
             iconColor: UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 1.0), // Green #2E7D32
-            title: "Cài Đặt Bàn Phím",
+            title: "Teclado en pantalla",
             action: #selector(handleKbSettings)
         )
         contentStack.addArrangedSubview(btnKbSettings)
@@ -128,7 +128,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnArrange = makeMenuItem(
             iconName: "arrow.up.and.down.and.arrow.left.and.right",
             iconColor: UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 1.0),
-            title: "Sắp Xếp Bàn Phím",
+            title: "Acomodar teclado",
             action: #selector(handleArrange)
         )
         contentStack.addArrangedSubview(btnArrange)
@@ -137,7 +137,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnHideKb = makeMenuItem(
             iconName: "keyboard",
             iconColor: UIColor(red: 0.18, green: 0.58, blue: 0.28, alpha: 1.0),
-            title: isKeypadHidden ? "Hiện Bàn Phím" : "Ẩn Bàn Phím",
+            title: isKeypadHidden ? "Mostrar teclado" : "Ocultar teclado",
             action: #selector(handleToggleHideKb)
         )
         self.hideKeypadBtn = btnHideKb
@@ -147,7 +147,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnRestart = makeMenuItem(
             iconName: "arrow.clockwise",
             iconColor: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
-            title: "Khởi Động Lại",
+            title: "Reiniciar",
             action: #selector(handleRestart)
         )
         contentStack.addArrangedSubview(btnRestart)
@@ -159,7 +159,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnExit = makeMenuItem(
             iconName: "rectangle.portrait.and.arrow.right",
             iconColor: UIColor(red: 0.95, green: 0.50, blue: 0.10, alpha: 1.0), // Orange #F57C00
-            title: "Thoát Game",
+            title: "Cerrar juego",
             action: #selector(handleExit)
         )
         contentStack.addArrangedSubview(btnExit)
@@ -168,7 +168,7 @@ final class TuoiThoPopupMenuView: UIView {
         let btnClose = makeMenuItem(
             iconName: "xmark",
             iconColor: UIColor(red: 0.25, green: 0.25, blue: 0.25, alpha: 1.0),
-            title: "Đóng",
+            title: "Cerrar",
             action: #selector(handleDismissTap)
         )
         contentStack.addArrangedSubview(btnClose)
@@ -225,7 +225,7 @@ final class TuoiThoPopupMenuView: UIView {
         guard let btn = hideKeypadBtn else { return }
         for sub in btn.subviews {
             if let lbl = sub as? UILabel {
-                lbl.text = isKeypadHidden ? "Hiện Bàn Phím" : "Ẩn Bàn Phím"
+                lbl.text = isKeypadHidden ? "Mostrar teclado" : "Ocultar teclado"
             }
         }
     }

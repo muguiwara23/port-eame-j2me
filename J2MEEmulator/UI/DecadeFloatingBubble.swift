@@ -190,47 +190,47 @@ final class DecadeFloatingBubble: UIView {
         guard let parentVC = self.topMostPresentedViewController else { return }
 
         let alert = UIAlertController(
-            title: "⚡ Vạn Trần J2ME — Đang chạy nền",
+            title: "⚡ Port/eame Java — en segundo plano",
             message: "\(gameName) — Tab \(currentTab)",
             preferredStyle: .actionSheet
         )
 
         // 1. Return to game
-        alert.addAction(UIAlertAction(title: "🎮 Quay lại game / Sáng màn", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🎮 Volver al juego", style: .default) { [weak self] _ in
             self?.onRestoreGame?()
         })
 
         // 2. PiP outside overlay over other apps
-        alert.addAction(UIAlertAction(title: "📺 Cửa sổ nổi ngoài màn hình (PiP - Đè ứng dụng khác)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "📺 Ventana flotante (PiP)", style: .default) { [weak self] _ in
             self?.onTogglePiP?()
         })
 
         // 3. In-app resizable floating mini-window
-        alert.addAction(UIAlertAction(title: "🪟 Cửa sổ màn hình nhỏ (Kéo to nhỏ tuỳ ý)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🪟 Ventana pequeña (ajustable)", style: .default) { [weak self] _ in
             self?.onToggleMiniWindow?()
         })
 
         // 4. Toggle Headless / Black Screen
-        alert.addAction(UIAlertAction(title: "🌙 Bật / Tắt màn đen tiết kiệm pin", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🌙 Pantalla negra para ahorrar batería", style: .default) { [weak self] _ in
             self?.onToggleHeadless?()
         })
 
         // 5. Switch Tab
-        alert.addAction(UIAlertAction(title: "📑 Chuyển Tab Midlet", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "📑 Cambiar de pestaña", style: .default) { [weak self] _ in
             self?.onSelectTabPrompt?()
         })
 
         // 6. Assign Proxy
-        alert.addAction(UIAlertAction(title: "🌐 Cấu hình Proxy Tab", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🌐 Proxy de la pestaña", style: .default) { [weak self] _ in
             self?.onAssignProxy?()
         })
 
         // 7. Turn off Keepalive / Treo
-        alert.addAction(UIAlertAction(title: "🛑 Tắt chạy nền (Dừng treo)", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🛑 Detener segundo plano", style: .destructive) { [weak self] _ in
             self?.onToggleTreo?()
         })
 
-        alert.addAction(UIAlertAction(title: "✕ Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "✕ Cerrar", style: .cancel))
 
         if let popover = alert.popoverPresentationController {
             popover.sourceView = self

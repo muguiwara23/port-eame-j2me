@@ -2,7 +2,7 @@
 //  AppsListViewController.swift
 //  J2MEEmulator
 //
-//  Giao diện danh sách game chuẩn 1:1 theo thiết kế "Chơi Game Tuổi Thơ"
+//  Giao diện danh sách game chuẩn 1:1 theo thiết kế "Port/eame Java"
 //  Hỗ trợ hiển thị trạng thái đang chạy 24/7, khôi phục game ngầm, và thanh điều hướng 5 tab hiện đại.
 //
 
@@ -97,12 +97,12 @@ class AppsListViewController: UIViewController,
 
         // Title and Subtitle
         let titleLabel = UILabel()
-        titleLabel.text = "Chơi Game Tuổi Thơ"
+        titleLabel.text = "Port/eame Java"
         titleLabel.font = .systemFont(ofSize: 18, weight: .bold)
         titleLabel.textColor = .white
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        headerSubtitleLabel.text = "Đang Chạy: 0 / 0 Game"
+        headerSubtitleLabel.text = "Abiertos: 0 / 0 juegos"
         headerSubtitleLabel.font = .systemFont(ofSize: 12, weight: .medium)
         headerSubtitleLabel.textColor = UIColor(red: 0.60, green: 0.64, blue: 0.70, alpha: 1.0)
         headerSubtitleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -114,9 +114,9 @@ class AppsListViewController: UIViewController,
         titleStack.translatesAutoresizingMaskIntoConstraints = false
         headerView.addSubview(titleStack)
 
-        // "+ Thêm" Button
+        // "+ Agregar" Button
         let addBtn = UIButton(type: .system)
-        addBtn.setTitle("+ Thêm", for: .normal)
+        addBtn.setTitle("+ Agregar", for: .normal)
         addBtn.setTitleColor(UIColor(red: 0.20, green: 0.83, blue: 0.45, alpha: 1.0), for: .normal)
         addBtn.titleLabel?.font = .systemFont(ofSize: 13, weight: .bold)
         addBtn.backgroundColor = UIColor(red: 0.04, green: 0.24, blue: 0.16, alpha: 1.0)
@@ -180,7 +180,7 @@ class AppsListViewController: UIViewController,
     }
 
     private func setupEmptyState() {
-        emptyStateLabel.text = "Chưa Có Game Nào\nBấm nút [+ Thêm] để nạp file .jar"
+        emptyStateLabel.text = "Aún no hay juegos\nToca [+ Agregar] para cargar un archivo .jar"
         emptyStateLabel.textColor = UIColor(red: 0.50, green: 0.55, blue: 0.62, alpha: 1.0)
         emptyStateLabel.font = .systemFont(ofSize: 15, weight: .medium)
         emptyStateLabel.textAlignment = .center
@@ -244,7 +244,7 @@ class AppsListViewController: UIViewController,
 
         // Tab 3: Đang Chạy (With Red Badge)
         let runningTab = makeTabButton(
-            title: "Đang Chạy",
+            title: "Abiertos",
             iconName: "play.circle.fill",
             color: UIColor(red: 0.65, green: 0.35, blue: 0.95, alpha: 1.0),
             action: #selector(tabDangChayTapped)
@@ -254,7 +254,7 @@ class AppsListViewController: UIViewController,
 
         // Tab 4: Tài Khoản
         stack.addArrangedSubview(makeTabButton(
-            title: "Tài Khoản",
+            title: "Cuenta",
             iconName: "person.fill",
             color: UIColor(red: 0.96, green: 0.62, blue: 0.05, alpha: 1.0),
             action: #selector(tabTaiKhoanTapped)
@@ -262,7 +262,7 @@ class AppsListViewController: UIViewController,
 
         // Tab 5: Cài Đặt
         stack.addArrangedSubview(makeTabButton(
-            title: "Cài Đặt",
+            title: "Ajustes",
             iconName: "gearshape.fill",
             color: UIColor(red: 0.45, green: 0.52, blue: 0.60, alpha: 1.0),
             action: #selector(tabCaiDatTapped)
@@ -352,17 +352,17 @@ class AppsListViewController: UIViewController,
         let ramMB = Double(jvm_bridge_get_used_ram_kb()) / 1024.0
 
         let alert = UIAlertController(
-            title: "Treo Game 24/24 Bất Tử",
-            message: "• Giữ Mạng 24/24: \(netRunning ? (netConnected ? "ĐANG GIỮ (Kết nối tốt)" : "Đang thử lại...") : "TẮT")\n  (Chống Wi-Fi ngủ khi tắt màn hình, chống nhà mạng 4G/5G ngắt kết nối)\n• Giữ Tiến Trình: Audio Bất Tử + \(isBTS ? "Định Vị BTS (0% Pin)" : "Tắt BTS")\n• RAM hiện tại: \(Int(ramMB)) MB",
+            title: "Juego en segundo plano",
+            message: "• Conexión continua: \(netRunning ? (netConnected ? "activa" : "reintentando...") : "apagada")\n• Proceso activo: audio + \(isBTS ? "ubicación" : "sin ubicación")\n• RAM actual: \(Int(ramMB)) MB",
             preferredStyle: .actionSheet
         )
-        alert.addAction(UIAlertAction(title: isBTS ? "Tắt chế độ Định Vị BTS" : "Bật kèm Định Vị BTS (0% Pin)", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: isBTS ? "Apagar modo ubicación" : "Encender modo ubicación", style: .default) { _ in
             DecadeLocationKeeper.shared.isLocationModeActive.toggle()
         })
-        alert.addAction(UIAlertAction(title: "Dọn dẹp RAM ngay", style: .default) { _ in
+        alert.addAction(UIAlertAction(title: "Liberar RAM ahora", style: .default) { _ in
             DecadeBackgroundKeeper.shared.performRamCleanup(completion: nil)
         })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -371,8 +371,8 @@ class AppsListViewController: UIViewController,
             runningVC.modalPresentationStyle = .fullScreen
             present(runningVC, animated: true)
         } else {
-            let alert = UIAlertController(title: "Thông Báo",
-                                          message: "Hiện chưa có game nào đang chạy ngầm. Hãy bấm vào một game để bắt đầu chơi!",
+            let alert = UIAlertController(title: "Aviso",
+                                          message: "No hay ningún juego abierto. ¡Toca un juego para empezar a jugar!",
                                           preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             present(alert, animated: true)
@@ -412,7 +412,7 @@ class AppsListViewController: UIViewController,
         let fileSizeString: String
         let resolutionString: String
 
-        init(name: String, path: String, fileName: String, version: String?, vendor: String?, icon: UIImage, fileSizeString: String = "0 MB", resolutionString: String = "Tự Động") {
+        init(name: String, path: String, fileName: String, version: String?, vendor: String?, icon: UIImage, fileSizeString: String = "0 MB", resolutionString: String = "Automático") {
             self.name = name
             self.path = path
             self.fileName = fileName
@@ -438,7 +438,7 @@ class AppsListViewController: UIViewController,
     }
 
     @objc private func refreshStatus() {
-        headerSubtitleLabel.text = "Đang Chạy: \(runningCount) / \(apps.count) Game"
+        headerSubtitleLabel.text = "Abiertos: \(runningCount) / \(apps.count) juegos"
         updateRunningBadge()
         springboardCollectionView.reloadData()
     }
@@ -462,7 +462,7 @@ class AppsListViewController: UIViewController,
             let gid = fileName.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "_", options: .regularExpression)
             let savedW = UserDefaults.standard.object(forKey: "resW_\(gid)") as? Int ?? 0
             let savedH = UserDefaults.standard.object(forKey: "resH_\(gid)") as? Int ?? 0
-            let resStr = (savedW > 0 && savedH > 0) ? "\(savedW)×\(savedH)" : "Tự Động"
+            let resStr = (savedW > 0 && savedH > 0) ? "\(savedW)×\(savedH)" : "Automático"
 
             return (appName, jar.path, fileName, meta?.version, meta?.vendor, jarIcon, sizeString, resStr)
         }
@@ -498,7 +498,7 @@ class AppsListViewController: UIViewController,
                 let gid = fileName.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "_", options: .regularExpression)
                 let savedW = UserDefaults.standard.object(forKey: "resW_\(gid)") as? Int ?? 0
                 let savedH = UserDefaults.standard.object(forKey: "resH_\(gid)") as? Int ?? 0
-                let resStr = (savedW > 0 && savedH > 0) ? "\(savedW)×\(savedH)" : "Tự Động"
+                let resStr = (savedW > 0 && savedH > 0) ? "\(savedW)×\(savedH)" : "Automático"
 
                 return (appName, jar.path, fileName, meta?.version, meta?.vendor, jarIcon, sizeString, resStr)
             }
@@ -514,7 +514,7 @@ class AppsListViewController: UIViewController,
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.apps = scannedApps
-                self.headerSubtitleLabel.text = "Đang Chạy: \(self.runningCount) / \(scannedApps.count) Game"
+                self.headerSubtitleLabel.text = "Abiertos: \(self.runningCount) / \(scannedApps.count) juegos"
                 self.updateRunningBadge()
                 self.springboardCollectionView.reloadData()
                 self.emptyStateLabel.isHidden = !scannedApps.isEmpty
@@ -630,45 +630,45 @@ class AppsListViewController: UIViewController,
 
     private func showCardActionSheet(for app: AppInfo, at indexPath: IndexPath) {
         let running = isGameRunning(app)
-        let alert = UIAlertController(title: app.name, message: "Chọn tác vụ cho game:", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: app.name, message: "¿Qué quieres hacer con el juego?", preferredStyle: .actionSheet)
 
         if running {
-            alert.addAction(UIAlertAction(title: "▶ Tiếp Tục Chơi (Khôi Phục Màn Hình)", style: .default) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "▶ Seguir jugando", style: .default) { [weak self] _ in
                 self?.didSelectApp(app)
             })
-            alert.addAction(UIAlertAction(title: "⏹ Thoát Game Này", style: .destructive) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "⏹ Cerrar este juego", style: .destructive) { [weak self] _ in
                 if let runningVC = GameViewController.currentActiveGameVC, runningVC.jarPath == app.path {
                     runningVC.forceExitGame()
                     self?.refreshStatus()
                 }
             })
         } else {
-            alert.addAction(UIAlertAction(title: "▶ Bắt Đầu Chơi", style: .default) { [weak self] _ in
+            alert.addAction(UIAlertAction(title: "▶ Jugar", style: .default) { [weak self] _ in
                 self?.launchGame(app: app)
             })
         }
 
-        alert.addAction(UIAlertAction(title: "⚙ Thiết Lập Game", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "⚙ Ajustes del juego", style: .default) { [weak self] _ in
             self?.openConfig(for: app)
         })
 
-        alert.addAction(UIAlertAction(title: "🌐 Quản Lý Proxy", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🌐 Proxies", style: .default) { [weak self] _ in
             self?.showProxyDialog()
         })
 
-        alert.addAction(UIAlertAction(title: "✏️ Đổi Tên", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "✏️ Cambiar nombre", style: .default) { [weak self] _ in
             self?.promptRenameApp(app: app)
         })
 
-        alert.addAction(UIAlertAction(title: "🔄 Cài Đặt Lại Dữ Liệu", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🔄 Borrar partidas", style: .default) { [weak self] _ in
             self?.confirmClearGameData(for: app)
         })
 
-        alert.addAction(UIAlertAction(title: "🗑️ Xóa Game", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🗑️ Eliminar juego", style: .destructive) { [weak self] _ in
             self?.confirmDeleteApp(at: indexPath)
         })
 
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         present(alert, animated: true)
     }
 
@@ -698,12 +698,12 @@ class AppsListViewController: UIViewController,
     }
 
     private func promptRenameApp(app: AppInfo) {
-        let alert = UIAlertController(title: "Đổi Tên", message: "Nhập tên mới cho ứng dụng:", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Cambiar nombre", message: "Escribe el nuevo nombre:", preferredStyle: .alert)
         alert.addTextField { tf in
             tf.text = app.name
         }
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Lưu", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Guardar", style: .default) { [weak self] _ in
             guard let self, let newName = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespaces), !newName.isEmpty else { return }
             UserDefaults.standard.set(newName, forKey: "name_\(Self.gameId(for: app))")
             self.scanApps()
@@ -716,23 +716,23 @@ class AppsListViewController: UIViewController,
     // ============================================================
 
     @objc private func showTopMoreMenuActionSheet() {
-        let alert = UIAlertController(title: "Cài Đặt & Tuỳ Chọn", message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "👑 Tác giả: Vạn Trần idol J2me NSV IOS", style: .default) { [weak self] _ in self?.showAuthorInfo() })
-        alert.addAction(UIAlertAction(title: "🌐 Quản lý Proxy SOCKS5", style: .default) { [weak self] _ in self?.showProxyDialog() })
-        alert.addAction(UIAlertAction(title: "🔄 Thay IP Phiên Bản", style: .default) { [weak self] _ in self?.showChangeIpDialog() })
-        alert.addAction(UIAlertAction(title: "⚙ Thiết lập game", style: .default) { [weak self] _ in self?.showGlobalSettings() })
-        alert.addAction(UIAlertAction(title: "👤 Quản lý hồ sơ", style: .default) { [weak self] _ in self?.showProfilesDialog() })
-        alert.addAction(UIAlertAction(title: "❓ Trợ giúp", style: .default) { [weak self] _ in self?.showHelpDialog() })
-        alert.addAction(UIAlertAction(title: "📝 Lưu log", style: .default) { [weak self] _ in self?.saveLogs() })
-        alert.addAction(UIAlertAction(title: "✕ Thoát ứng dụng", style: .destructive) { _ in exit(0) })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        let alert = UIAlertController(title: "Ajustes y opciones", message: nil, preferredStyle: .actionSheet)
+        alert.addAction(UIAlertAction(title: "ℹ️ Créditos", style: .default) { [weak self] _ in self?.showAuthorInfo() })
+        alert.addAction(UIAlertAction(title: "🌐 Proxies SOCKS5", style: .default) { [weak self] _ in self?.showProxyDialog() })
+        alert.addAction(UIAlertAction(title: "🔄 Cambiar servidor", style: .default) { [weak self] _ in self?.showChangeIpDialog() })
+        alert.addAction(UIAlertAction(title: "⚙ Ajustes del juego", style: .default) { [weak self] _ in self?.showGlobalSettings() })
+        alert.addAction(UIAlertAction(title: "👤 Perfiles", style: .default) { [weak self] _ in self?.showProfilesDialog() })
+        alert.addAction(UIAlertAction(title: "❓ Ayuda", style: .default) { [weak self] _ in self?.showHelpDialog() })
+        alert.addAction(UIAlertAction(title: "📝 Guardar registro", style: .default) { [weak self] _ in self?.saveLogs() })
+        alert.addAction(UIAlertAction(title: "✕ Salir de la app", style: .destructive) { _ in exit(0) })
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         present(alert, animated: true)
     }
 
     @objc private func showAuthorInfo() {
         let alert = UIAlertController(
-            title: "Vạn Trần idol J2me NSV IOS",
-            message: "Ứng dụng J2ME Decade iOS Multi-Tab Engine — Native Edition.\nTác giả: Vạn Trần idol J2me NSV IOS\n• Chế độ Chơi Game Tuổi Thơ\n• Treo 24/7 Định Vị BTS 0% Hao Pin\n• Phòng chống tuyệt đối hiện tượng đơ/văng màn hình khi tắt máy\n• Giữ kết nối ngầm thông suốt không bị gián đoạn.",
+            title: "Port/eame Java",
+            message: "Port/eame Java: juegos Java (J2ME) en iPhone y iPad.\nBasado en J2ME-Decade (iOS) de Vạn Trần, el emulador J2ME de Alexander Goremykin, la API de J2ME-Loader y miniJVM.\nLicencia Apache 2.0.",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -757,7 +757,7 @@ class AppsListViewController: UIViewController,
         if let firstApp = apps.first {
             openConfig(for: firstApp)
         } else {
-            let dummyApp = AppInfo(name: "KamenRider Decade", path: "", fileName: "", version: "1.0.0", vendor: "Havan", icon: UIImage(), fileSizeString: "0 MB", resolutionString: "Tự Động")
+            let dummyApp = AppInfo(name: "KamenRider Decade", path: "", fileName: "", version: "1.0.0", vendor: "Havan", icon: UIImage(), fileSizeString: "0 MB", resolutionString: "Automático")
             openConfig(for: dummyApp)
         }
     }
@@ -899,11 +899,11 @@ class AppsListViewController: UIViewController,
     }
 
     private func confirmClearGameData(for app: AppInfo) {
-        let alert = UIAlertController(title: "Xóa Dữ Liệu Game",
-                                       message: "Bạn có chắc muốn xóa toàn bộ dữ liệu lưu của \(app.name)?",
+        let alert = UIAlertController(title: "Borrar partidas",
+                                       message: "¿Seguro que quieres borrar todas las partidas de \(app.name)?",
                                        preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Xóa", style: .destructive) { _ in
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Borrar", style: .destructive) { _ in
             let gid = Self.gameId(for: app)
             try? FileManager.default.removeItem(atPath: Self.documentsDirectory + "/Games Data/" + gid)
         })
@@ -912,11 +912,11 @@ class AppsListViewController: UIViewController,
 
     private func confirmDeleteApp(at indexPath: IndexPath) {
         let app = apps[indexPath.item]
-        let alert = UIAlertController(title: "Xóa Game",
-                                       message: "Bạn có chắc muốn xóa \(app.name) cùng toàn bộ dữ liệu lưu?",
+        let alert = UIAlertController(title: "Eliminar juego",
+                                       message: "¿Seguro que quieres eliminar \(app.name) y todas sus partidas?",
                                        preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Hủy", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Xóa", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Cancelar", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Borrar", style: .destructive) { [weak self] _ in
             guard let self else { return }
             let gid = Self.gameId(for: app)
             try? FileManager.default.removeItem(atPath: Self.documentsDirectory + "/Games Data/" + gid)
@@ -925,7 +925,7 @@ class AppsListViewController: UIViewController,
                 self.apps.remove(at: indexPath.item)
                 self.springboardCollectionView.deleteItems(at: [indexPath])
             }
-            self.headerSubtitleLabel.text = "Đang Chạy: \(self.runningCount) / \(self.apps.count) Game"
+            self.headerSubtitleLabel.text = "Abiertos: \(self.runningCount) / \(self.apps.count) juegos"
             self.emptyStateLabel.isHidden = !self.apps.isEmpty
         })
         present(alert, animated: true)

@@ -73,7 +73,7 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
         headerBar.translatesAutoresizingMaskIntoConstraints = false
         addSubview(headerBar)
 
-        titleLabel.text = "🎮 Vạn Trần - Tab 1"
+        titleLabel.text = "🎮 Port/eame Java - Pestaña 1"
         titleLabel.textColor = .white
         titleLabel.font = .systemFont(ofSize: 11, weight: .bold)
         titleLabel.isUserInteractionEnabled = true
@@ -198,7 +198,7 @@ final class DecadeMiniWindow: UIView, UIGestureRecognizerDelegate {
 
     func setTabInfo(tabNumber: Int) {
         self.currentTabNumber = tabNumber
-        self.titleLabel.text = "🎮 Vạn Trần - Tab \(tabNumber)"
+        self.titleLabel.text = "🎮 Port/eame Java - Pestaña \(tabNumber)"
     }
 
     func updateFrame(_ cgImage: CGImage) {

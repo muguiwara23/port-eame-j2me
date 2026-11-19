@@ -2,7 +2,7 @@
 //  DecadeChangeIpViewController.swift
 //  J2MEEmulator
 //
-//  1:1 Replica of Decade APK "Thay IP Phiên Bản" (Server Destination Redirection)
+//  1:1 Replica of Decade APK "Cambiar servidor" (Server Destination Redirection)
 //  Redirects game socket connections to custom server IP/Port (e.g. private servers).
 //
 
@@ -26,7 +26,7 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
         super.viewDidLoad()
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = UIColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 1.0)
-        title = "Thay IP Phiên Bản"
+        title = "Cambiar servidor"
 
         setupNavBar()
         setupUI()
@@ -42,8 +42,8 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
         navigationController?.navigationBar.scrollEdgeAppearance = navBarAppearance
         navigationController?.navigationBar.tintColor = .white
 
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Đóng", style: .plain, target: self, action: #selector(closeTapped))
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Lưu", style: .done, target: self, action: #selector(saveGlobalSettings))
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Cerrar", style: .plain, target: self, action: #selector(closeTapped))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Guardar", style: .done, target: self, action: #selector(saveGlobalSettings))
     }
 
     @objc private func closeTapped() {
@@ -86,7 +86,7 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
         switchRow.distribution = .equalSpacing
 
         let switchLabel = UILabel()
-        switchLabel.text = "Đổi máy chủ kết nối của game"
+        switchLabel.text = "Cambia el servidor al que se conecta el juego"
         switchLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         switchLabel.textColor = .white
         switchRow.addArrangedSubview(switchLabel)
@@ -96,14 +96,14 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
         globalStack.addArrangedSubview(switchRow)
 
         let noteLabel = UILabel()
-        noteLabel.text = "Chức năng này đổi IP/cổng máy chủ đích của game (vd: vào server riêng), không phải proxy."
+        noteLabel.text = "Cambia la IP o el puerto del servidor del juego (por ejemplo, un servidor privado). No es un proxy."
         noteLabel.font = .systemFont(ofSize: 12)
         noteLabel.textColor = UIColor(red: 0.82, green: 0.86, blue: 0.95, alpha: 1.0)
         noteLabel.numberOfLines = 0
         globalStack.addArrangedSubview(noteLabel)
 
-        globalStack.addArrangedSubview(makeInput(label: "IP/Host máy chủ mới:", field: globalHostField, placeholder: "vd: 103.179.188.45"))
-        globalStack.addArrangedSubview(makeInput(label: "Cổng máy chủ mới:", field: globalPortField, placeholder: "vd: 14444", isNumber: true))
+        globalStack.addArrangedSubview(makeInput(label: "IP o dominio del servidor nuevo:", field: globalHostField, placeholder: "vd: 103.179.188.45"))
+        globalStack.addArrangedSubview(makeInput(label: "Puerto del servidor nuevo:", field: globalPortField, placeholder: "vd: 14444", isNumber: true))
 
         // Card 2: Specific Redirect Rule (Old IP -> New IP)
         let ruleCard = UIView()
@@ -125,17 +125,17 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
         ruleCard.addSubview(ruleStack)
 
         let ruleTitle = UILabel()
-        ruleTitle.text = "Hoặc chuyển hướng theo từng máy chủ gốc:"
+        ruleTitle.text = "O redirige cada servidor original:"
         ruleTitle.font = .systemFont(ofSize: 14, weight: .semibold)
         ruleTitle.textColor = UIColor(red: 0.45, green: 0.75, blue: 1.0, alpha: 1.0)
         ruleStack.addArrangedSubview(ruleTitle)
 
-        ruleStack.addArrangedSubview(makeInput(label: "Máy chủ cũ (IP hoặc domain gốc):", field: oldIpField, placeholder: "27.0.14.73 hoặc nso1.teamobi.com"))
-        ruleStack.addArrangedSubview(makeInput(label: "Máy chủ mới (Đích thay thế):", field: newIpField, placeholder: "103.179.188.45"))
-        ruleStack.addArrangedSubview(makeInput(label: "Cổng đích:", field: portField, placeholder: "14444", isNumber: true))
+        ruleStack.addArrangedSubview(makeInput(label: "Servidor original (IP o dominio):", field: oldIpField, placeholder: "203.0.113.10 o servidor.ejemplo.com"))
+        ruleStack.addArrangedSubview(makeInput(label: "Servidor nuevo (destino):", field: newIpField, placeholder: "103.179.188.45"))
+        ruleStack.addArrangedSubview(makeInput(label: "Puerto de destino:", field: portField, placeholder: "14444", isNumber: true))
 
         let addRuleBtn = UIButton(type: .system)
-        addRuleBtn.setTitle("➕ Thêm quy tắc chuyển hướng", for: .normal)
+        addRuleBtn.setTitle("➕ Agregar redirección", for: .normal)
         addRuleBtn.setTitleColor(UIColor(red: 0.40, green: 0.75, blue: 1.0, alpha: 1.0), for: .normal)
         addRuleBtn.titleLabel?.font = .systemFont(ofSize: 14, weight: .bold)
         addRuleBtn.addTarget(self, action: #selector(addRuleTapped), for: .touchUpInside)
@@ -229,7 +229,7 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
     @objc private func addRuleTapped() {
         guard let oldIp = oldIpField.text?.trimmingCharacters(in: .whitespaces), !oldIp.isEmpty,
               let newIp = newIpField.text?.trimmingCharacters(in: .whitespaces), !newIp.isEmpty else {
-            let alert = UIAlertController(title: "Lỗi", message: "Vui lòng nhập cả máy chủ cũ và máy chủ đích", preferredStyle: .alert)
+            let alert = UIAlertController(title: "Error", message: "Escribe el servidor original y el de destino", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             present(alert, animated: true)
             return
@@ -283,7 +283,7 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let container = UIView()
         let label = UILabel()
-        label.text = "QUY TẮC CHUYỂN HƯỚNG CỤ THỂ (\(rules.count))"
+        label.text = "REDIRECCIONES (\(rules.count))"
         label.font = .systemFont(ofSize: 13, weight: .bold)
         label.textColor = UIColor(red: 0.45, green: 0.75, blue: 1.0, alpha: 1.0)
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -320,7 +320,7 @@ class DecadeChangeIpViewController: UIViewController, UITableViewDataSource, UIT
         cell.textLabel?.font = .systemFont(ofSize: 15, weight: .bold)
         cell.textLabel?.textColor = .white
 
-        cell.detailTextLabel?.text = port.isEmpty ? "Chuyển tiếp tất cả các cổng" : "Cổng đích: \(port)"
+        cell.detailTextLabel?.text = port.isEmpty ? "Todos los puertos" : "Puerto de destino: \(port)"
         cell.detailTextLabel?.font = .systemFont(ofSize: 13, weight: .medium)
         cell.detailTextLabel?.textColor = UIColor(red: 0.35, green: 0.90, blue: 0.55, alpha: 1.0)
 

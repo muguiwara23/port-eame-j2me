@@ -2,7 +2,7 @@
 //  DecadeKeypadView.swift
 //  J2MEEmulator
 //
-//  Bàn phím ảo phong cách "Chơi Game Tuổi Thơ" cho J2ME iOS:
+//  Bàn phím ảo phong cách "Port/eame Java" cho J2ME iOS:
 //  - Hàng trên: Phím mềm L & R (màu tím nhạt lavender, chữ tím đậm).
 //  - Bên trái: Bàn phím số 3x4 thẻ trắng trang nhã (1-9, *, 0, #) kèm chữ phụ (ABC, DEF...) + nút Del (tím) và / (trắng).
 //  - Bên phải: Cụm phím điều hướng D-Pad (mũi tên xanh lá ^, <, >, v trên thẻ mint) và ở giữa là nút OK màu xanh lá cây nổi bật đặc trưng với chữ trắng!

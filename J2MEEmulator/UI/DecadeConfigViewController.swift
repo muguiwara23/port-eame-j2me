@@ -2,7 +2,7 @@
 //  DecadeConfigViewController.swift
 //  J2MEEmulator
 //
-//  Giao diện "Cài Đặt Game" chuẩn phong cách hiện đại theo đúng thiết kế bản Chơi Game Tuổi Thơ.
+//  Giao diện "Ajustes del juego" chuẩn phong cách hiện đại theo đúng thiết kế bản Chơi Game Tuổi Thơ.
 //  Bao gồm các mục Màn Hình (Cỡ màn hình, Độ phân giải, Khung hình/giây) và
 //  Khi Chơi (Cài đặt bàn phím, Treo khi ra ngoài, Âm thanh game).
 //
@@ -20,19 +20,19 @@ class DecadeConfigViewController: UIViewController {
     // State for Màn Hình
     private var selectedScreenSizeIndex: Int = 0
     private let screenSizes: [(label: String, w: Int, h: Int)] = [
-        ("Tự Động", 0, 0),
+        ("Automático", 0, 0),
         ("240 × 320", 240, 320),
         ("320 × 240", 320, 240),
         ("360 × 640", 360, 640),
         ("480 × 800", 480, 800),
-        ("Tự Chọn", -1, -1)
+        ("Personalizado", -1, -1)
     ]
     private var screenSizeButtons: [PillButton] = []
 
     // State for Độ Phân Giải
     private var selectedResIndex: Int = 3 // 360 default
     private let resOptions: [(label: String, val: Int)] = [
-        ("Theo\nMáy", 0),
+        ("Del\nequipo", 0),
         ("240", 240),
         ("320", 320),
         ("360", 360),
@@ -100,7 +100,7 @@ class DecadeConfigViewController: UIViewController {
         navigationController?.navigationBar.scrollEdgeAppearance = appearance
         navigationController?.navigationBar.tintColor = UIColor(red: 0.10, green: 0.14, blue: 0.10, alpha: 1.0)
 
-        title = "Cài Đặt Game"
+        title = "Ajustes del juego"
 
         // Back button on left
         navigationItem.leftBarButtonItem = UIBarButtonItem(
@@ -172,7 +172,7 @@ class DecadeConfigViewController: UIViewController {
             icon: "display",
             iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
             iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
-            title: "Màn Hình"
+            title: "Pantalla"
         )
         contentStack.addArrangedSubview(header)
 
@@ -198,8 +198,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "iphone",
             iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
             iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
-            title: "Cỡ Màn Hình",
-            subtitle: "Tự Động Kín Màn, Không Méo"
+            title: "Tamaño de pantalla",
+            subtitle: "Llenar la pantalla sin deformar"
         )
         cardStack.addArrangedSubview(sizeRowHeader)
 
@@ -236,8 +236,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "aspectratio",
             iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
             iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
-            title: "Kín Màn Hình (Không Viền Đen)",
-            subtitle: "Tự động co giãn kín toàn khung hiển thị",
+            title: "Pantalla completa (sin bordes negros)",
+            subtitle: "Estira la imagen a toda la pantalla",
             toggle: fillScreenSwitch,
             action: #selector(fillScreenSwitchChanged(_:))
         )
@@ -251,8 +251,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "sparkles.tv",
             iconBg: UIColor(red: 0.94, green: 0.90, blue: 0.98, alpha: 1.0),
             iconTint: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
-            title: "Độ Phân Giải",
-            subtitle: "Nhỏ: Chữ To · Lớn: Thấy Rộng"
+            title: "Resolución",
+            subtitle: "Menor: letra grande · Mayor: más espacio"
         )
         cardStack.addArrangedSubview(resRowHeader)
 
@@ -279,8 +279,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "gauge.with.needle",
             iconBg: UIColor(red: 0.94, green: 0.90, blue: 0.98, alpha: 1.0),
             iconTint: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
-            title: "Khung Hình / Giây",
-            subtitle: "Ít Hơn Thì Đỡ Pin Khi Treo"
+            title: "Cuadros por segundo",
+            subtitle: "Menos cuadros gastan menos batería"
         )
         cardStack.addArrangedSubview(fpsRowHeader)
 
@@ -312,7 +312,7 @@ class DecadeConfigViewController: UIViewController {
             icon: "gamecontroller",
             iconBg: UIColor(red: 0.94, green: 0.90, blue: 0.98, alpha: 1.0),
             iconTint: UIColor(red: 0.49, green: 0.34, blue: 0.76, alpha: 1.0),
-            title: "Khi Chơi"
+            title: "Al jugar"
         )
         contentStack.addArrangedSubview(header)
 
@@ -337,11 +337,11 @@ class DecadeConfigViewController: UIViewController {
         let kbRow = UIView()
         let kbIcon = makeChipIcon("keyboard", bg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0), tint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0))
         let kbTitle = UILabel()
-        kbTitle.text = "Cài Đặt Bàn Phím"
+        kbTitle.text = "Teclado en pantalla"
         kbTitle.font = .systemFont(ofSize: 15, weight: .semibold)
         kbTitle.textColor = UIColor(red: 0.10, green: 0.14, blue: 0.10, alpha: 1.0)
 
-        keyboardStatusLabel.text = "Đang Hiện"
+        keyboardStatusLabel.text = "Visible"
         keyboardStatusLabel.font = .systemFont(ofSize: 13, weight: .regular)
         keyboardStatusLabel.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
 
@@ -390,8 +390,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "moon.fill",
             iconBg: UIColor(red: 0.88, green: 0.95, blue: 0.88, alpha: 1.0),
             iconTint: UIColor(red: 0.18, green: 0.50, blue: 0.20, alpha: 1.0),
-            title: "Treo Khi Ra Ngoài",
-            subtitle: "Khóa Máy Game Vẫn Chạy",
+            title: "Seguir en segundo plano",
+            subtitle: "El juego sigue con la pantalla bloqueada",
             toggle: treoSwitch,
             action: #selector(treoSwitchChanged(_:))
         )
@@ -405,8 +405,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "location.fill",
             iconBg: UIColor(red: 0.88, green: 0.93, blue: 1.0, alpha: 1.0),
             iconTint: UIColor(red: 0.10, green: 0.45, blue: 0.95, alpha: 1.0),
-            title: "Treo Định Vị BTS (0% Pin)",
-            subtitle: "Không Dùng Audio, Tiết Kiệm Pin Tối Đa",
+            title: "Modo ubicación",
+            subtitle: "Sin audio, menos batería",
             toggle: locationModeSwitch,
             action: #selector(locationModeSwitchChanged(_:))
         )
@@ -420,8 +420,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "sparkles",
             iconBg: UIColor(red: 0.88, green: 0.96, blue: 0.95, alpha: 1.0),
             iconTint: UIColor(red: 0.00, green: 0.54, blue: 0.48, alpha: 1.0),
-            title: "Tự Động Dọn RAM",
-            subtitle: "Giải Phóng Bộ Nhớ Khi Treo Lâu",
+            title: "Liberar RAM sola",
+            subtitle: "Libera memoria cuando el juego lleva mucho abierto",
             toggle: autoCleanRamSwitch,
             action: #selector(autoCleanRamSwitchChanged(_:))
         )
@@ -435,8 +435,8 @@ class DecadeConfigViewController: UIViewController {
             icon: "speaker.wave.2.fill",
             iconBg: UIColor(red: 1.0, green: 0.94, blue: 0.86, alpha: 1.0),
             iconTint: UIColor(red: 0.95, green: 0.55, blue: 0.15, alpha: 1.0),
-            title: "Âm Thanh Game",
-            subtitle: "Nhạc Nền Và Tiếng Hiệu Ứng",
+            title: "Sonido del juego",
+            subtitle: "Música y efectos",
             toggle: soundSwitch,
             action: #selector(soundSwitchChanged(_:))
         )
@@ -458,7 +458,7 @@ class DecadeConfigViewController: UIViewController {
         proxyTitle.font = .systemFont(ofSize: 15, weight: .semibold)
         proxyTitle.textColor = UIColor(red: 0.12, green: 0.14, blue: 0.12, alpha: 1.0)
 
-        proxyStatusLabel.text = "Chưa cấu hình (Nhấn để thêm)"
+        proxyStatusLabel.text = "Sin configurar (toca para agregar)"
         proxyStatusLabel.font = .systemFont(ofSize: 12, weight: .regular)
         proxyStatusLabel.textColor = UIColor(red: 0.45, green: 0.50, blue: 0.45, alpha: 1.0)
 
@@ -693,28 +693,28 @@ class DecadeConfigViewController: UIViewController {
     }
 
     @objc private func keyboardSettingsTapped() {
-        let alert = UIAlertController(title: "Cài Đặt Bàn Phím", message: "Chọn kiểu cấu trúc bàn phím ảo hiển thị:", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Teclado en pantalla", message: "Elige el teclado en pantalla:", preferredStyle: .actionSheet)
 
-        alert.addAction(UIAlertAction(title: "⭐️ Bản Tuổi Thơ (Chuẩn Mới)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "⭐️ Clásico", style: .default) { [weak self] _ in
             self?.applyKeyboardLayout(0)
         })
-        alert.addAction(UIAlertAction(title: "🎯 Chỉ Mũi Tên Điều Hướng", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🎯 Solo flechas", style: .default) { [weak self] _ in
             self?.applyKeyboardLayout(1)
         })
-        alert.addAction(UIAlertAction(title: "🔢 Bàn Phím Số (Numpad)", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🔢 Teclado numérico", style: .default) { [weak self] _ in
             self?.applyKeyboardLayout(2)
         })
-        alert.addAction(UIAlertAction(title: "🔄 Kết Hợp Đầy Đủ", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "🔄 Completo (flechas y números)", style: .default) { [weak self] _ in
             self?.applyKeyboardLayout(3)
         })
-        alert.addAction(UIAlertAction(title: "Ẩn / Hiện Bàn Phím", style: .default) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Mostrar u ocultar teclado", style: .default) { [weak self] _ in
             guard let self = self else { return }
             let isHidden = UserDefaults.standard.bool(forKey: "keypad_hidden_\(self.gid)")
             UserDefaults.standard.set(!isHidden, forKey: "keypad_hidden_\(self.gid)")
-            self.keyboardStatusLabel.text = !isHidden ? "Đang Ẩn" : "Đang Hiện"
+            self.keyboardStatusLabel.text = !isHidden ? "Oculto" : "Visible"
             self.saveValues()
         })
-        alert.addAction(UIAlertAction(title: "Đóng", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cerrar", style: .cancel))
         if let popover = alert.popoverPresentationController {
             popover.sourceView = view
             popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
@@ -744,9 +744,9 @@ class DecadeConfigViewController: UIViewController {
         if let assigned = DecadeProxyManager.shared.proxyForScreen(appId: app.name, slot: 0) {
             proxyStatusLabel.text = "\(assigned.isSocks5 ? "SOCKS5" : "HTTP"): \(assigned.host):\(assigned.port)"
         } else if count > 0 {
-            proxyStatusLabel.text = "Đã lưu \(count) proxy (Nhấn để gán)"
+            proxyStatusLabel.text = "\(count) proxies guardados (toca para asignar)"
         } else {
-            proxyStatusLabel.text = "Chưa cấu hình (Nhấn để thêm)"
+            proxyStatusLabel.text = "Sin configurar (toca para agregar)"
         }
     }
 
@@ -817,7 +817,7 @@ class DecadeConfigViewController: UIViewController {
 
         // Keyboard status
         let isKbHidden = defaults.bool(forKey: "keypad_hidden_\(gid)")
-        keyboardStatusLabel.text = isKbHidden ? "Đang Ẩn" : "Đang Hiện"
+        keyboardStatusLabel.text = isKbHidden ? "Oculto" : "Visible"
     }
 
     private func saveValues() {
